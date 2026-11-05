@@ -7,7 +7,7 @@ import {
 } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { AuthContext, type AuthContextValue } from './auth-context';
-import { getSupabaseClient, isSupabaseConfigured } from './supabase';
+import { getSupabaseClient, isSupabaseConfigured, supabaseConfigurationMessage } from './supabase';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -20,7 +20,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(
     isSupabaseConfigured
       ? null
-      : 'Supabase is not configured. Copy .env.example to .env.local, add the project URL and public anon/publishable key, then restart Vite.',
+      : supabaseConfigurationMessage,
   );
 
   useEffect(() => {

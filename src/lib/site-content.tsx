@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { getSupabaseClient, isSupabaseConfigured } from './supabase';
+import { getSupabaseClient, isSupabaseConfigured, supabaseConfigurationMessage } from './supabase';
 import { useAuth } from './auth-context';
 import { SiteContentContext } from './site-content-context';
 
@@ -212,9 +212,7 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(async () => {
     if (!isSupabaseConfigured) {
-      setError(
-        'Database content is unavailable. Copy .env.example to .env.local, add Supabase URL and public anon/publishable key, then restart Vite.',
-      );
+      setError(`Database content is unavailable. ${supabaseConfigurationMessage}`);
       setIsLoading(false);
       return;
     }

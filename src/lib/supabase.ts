@@ -1,6 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './database.types';
 
+export const supabaseConfigurationMessage =
+  'Supabase is unavailable. Configure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY (or VITE_SUPABASE_PUBLISHABLE_KEY) for this Vercel environment, then redeploy.';
+
 export const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim() || '';
 export const supabasePublicKey =
   import.meta.env.VITE_SUPABASE_ANON_KEY?.trim() ||
@@ -27,9 +30,7 @@ export const supabase = isSupabaseConfigured
 
 export const getSupabaseClient = () => {
   if (!supabase) {
-    throw new Error(
-      'Supabase is not configured. Copy .env.example to .env.local, add the project URL and public anon/publishable key, then restart Vite.',
-    );
+    throw new Error(supabaseConfigurationMessage);
   }
 
   return supabase;
