@@ -1,0 +1,39 @@
+{
+  "name": "hos-new-website",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc -b && vite build",
+    "lint": "oxlint .",
+    "preview": "vite preview --host",
+    "start": "node scripts/start.js",
+    "start:all": "vite --host",
+    "seed:dev-accounts": "node scripts/seed-dev-accounts.mjs",
+    "verify:dev-accounts": "node scripts/verify-dev-accounts.mjs",
+    "staff:template": "node scripts/create-staff-account-template.mjs",
+    "provision:staff": "node scripts/provision-staff-accounts.mjs",
+    "staff:password": "node scripts/provision-staff-accounts.mjs --password"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.119.0",
+    "docx": "^9.15.2",
+    "lucide-react": "^1.68.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "react-router-dom": "^7.18.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "autoprefixer": "^10.6.2",
+    "oxlint": "^1.89.0",
+    "postcss": "^8.5.32",
+    "tailwindcss": "^3.4.14",
+    "typescript": "~7.0.2",
+    "vite": "^8.3.5"
+  }
+}
