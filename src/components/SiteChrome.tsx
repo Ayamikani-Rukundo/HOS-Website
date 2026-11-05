@@ -73,6 +73,8 @@ function NavigationLinks({ onNavigate }: { onNavigate?: () => void }) {
 export function SiteHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
   const { theme, toggleTheme } = useTheme();
+  const { pathname } = useLocation();
+  const isHomePage = pathname === '/';
   const { organization, socialLinks } = useSiteContent();
   const { user, roles } = useAuth();
 
@@ -92,8 +94,15 @@ export function SiteHeader() {
         </nav>
 
         <div className="header-actions">
-          <button type="button" className="icon-button" aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`} onClick={toggleTheme}>
-            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+          <button
+            type="button"
+            className="icon-button"
+            aria-label={isHomePage ? 'Dark mode is fixed on the home page' : `Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
+            title={isHomePage ? 'Dark mode is fixed on the home page' : undefined}
+            onClick={toggleTheme}
+            disabled={isHomePage}
+          >
+            {isHomePage || theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
           </button>
           <Link to={user && roles.length ? '/workspace' : '/portal'} className="button button-outline">
             {user && roles.length ? 'My workspace' : 'Staff login'}
