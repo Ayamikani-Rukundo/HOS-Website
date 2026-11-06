@@ -237,54 +237,11 @@ export async function saveAdminRow(
   return null;
 }
 
-export async function archiveAdminRow(table: AdminTable, row: DataRow) {
+export async function deleteAdminRow(table: AdminTable, row: DataRow) {
   const id = typeof row.id === 'string' ? row.id : '';
-  if (!id) throw new Error('Cannot archive a record without an ID.');
+  if (!id) throw new Error('Cannot delete a record without an ID.');
 
-  const archiveFields: Record<AdminTable, DataRow | null> = {
-    organizations: null,
-    website_sections: { is_published: false },
-    team_years: { is_published: false, active: false },
-    team_members: { is_published: false, status: 'archived' },
-    programs: { is_published: false },
-    partner_organizations: { is_published: false, archived_at: new Date().toISOString() },
-    galleries: { is_published: false, archived_at: new Date().toISOString() },
-    events: { is_published: false, status: 'archived', archived_at: new Date().toISOString() },
-    announcements: { is_published: false, status: 'archived', archived_at: new Date().toISOString() },
-    campaign_categories: { is_published: false, archived_at: new Date().toISOString() },
-    donation_campaigns: { is_published: false, status: 'archived', archived_at: new Date().toISOString() },
-    contact_details: { is_public: false, archived_at: new Date().toISOString() },
-    social_links: { is_active: false, archived_at: new Date().toISOString() },
-    newsletter_subscribers: null,
-    volunteer_applications: null,
-    volunteers: { status: 'inactive' },
-    volunteer_assignments: { status: 'cancelled' },
-    donations: null,
-    donation_methods: { is_active: false, is_public: false },
-    finance_transactions: { archived_at: new Date().toISOString() },
-    donors: null,
-    contact_messages: null,
-    secretariat_documents: { status: 'archived', archived_at: new Date().toISOString() },
-    department_updates: { status: 'archived' },
-    families: { status: 'closed' },
-    children: { status: 'closed' },
-    student_support_updates: null,
-    case_records: { status: 'closed', closed_at: new Date().toISOString() },
-    case_notes: null,
-    assistance_records: null,
-    audit_events: null,
-    email_notification_jobs: { status: 'cancelled' },
-    website_page_views: null,
-    grant_opportunities: { status: 'archived' },
-    staff_accounts: null,
-  };
-  const archive = archiveFields[table];
-  const changedRows = await request<DataRow[]>(
-    table,
-    `id=eq.${encodeURIComponent(id)}`,
-    archive ? 'PATCH' : 'DELETE',
-    archive ?? undefined,
-  );
+  const changedRows = await request<DataRow[]>(table, `id=eq.${encodeURIComponent(id)}`, 'DELETE');
   if (!Array.isArray(changedRows) || changedRows.length === 0) {
     throw new Error('No record was changed. It may already be removed, or your account may not have permission to delete it.');
   }

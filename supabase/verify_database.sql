@@ -1,5 +1,5 @@
 -- Run after applying the project's Supabase migrations, including
--- 20261106060000_giving_areas_and_subscriber_cleanup.sql.
+-- 20261106080000_live_admin_progress.sql.
 -- These checks are read-only and do not display contact, child, donor, or case data.
 
 with expected_tables(table_name) as (
@@ -120,6 +120,14 @@ union all
 select
   'admin staff directory function',
   to_regprocedure('public.get_staff_directory()') is not null
+union all
+select
+  'admin portal progress function',
+  to_regprocedure('public.get_admin_portal_metrics()') is not null
+union all
+select
+  'audit history delete uses bigint IDs',
+  to_regprocedure('public.delete_audit_events_by_ids(bigint[])') is not null
 union all
 select
   'Realtime publication available',

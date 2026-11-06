@@ -364,7 +364,7 @@ export type Database = {
         Returns: Array<{ portal_key: string; table_name: string; record_count: number }>;
       };
       delete_audit_events_by_ids: {
-        Args: { p_event_ids: string[] };
+        Args: { p_event_ids: number[] };
         Returns: number;
       };
       has_any_role: {

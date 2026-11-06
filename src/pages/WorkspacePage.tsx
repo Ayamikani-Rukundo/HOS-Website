@@ -32,7 +32,7 @@ import { canAccessRole, getPortalTeam, getPortals, type OrganizationRole, type P
 import { getSupabaseClient } from '../lib/supabase';
 import { StudentSupportWorkspace } from './StudentSupportWorkspace';
 import {
-  archiveAdminRow,
+  deleteAdminRow,
   loadAdminAnalytics,
   listAdminRows,
   saveAdminRow,
@@ -55,8 +55,8 @@ type TableConfig = {
   fields: Field[];
   readOnly?: boolean;
   canCreate?: boolean;
-  canArchive?: boolean;
-  archiveLabel?: string;
+  canDelete?: boolean;
+  deleteLabel?: string;
 };
 
 const field = (key: string, label = key.replaceAll('_', ' '), kind: FieldKind = 'text', options?: string[], required = false): Field => ({ key, label, kind, options, required });
@@ -70,7 +70,7 @@ const referenceField = (key: string, label: string, referenceTable: AdminTable, 
 });
 
 const configs: Record<AdminTable, TableConfig> = {
-  organizations: { table: 'organizations', title: 'Organization profile', description: 'Public identity and official contact details.', columns: ['name', 'tagline', 'location', 'email'], fields: [field('name', 'Name', 'text', undefined, true), field('tagline'), field('location'), field('founded_year'), field('mission', 'Mission', 'textarea'), field('email'), field('phone'), field('address', 'Address', 'textarea'), field('currency_code')], canCreate: false, canArchive: false },
+  organizations: { table: 'organizations', title: 'Organization profile', description: 'Public identity and official contact details.', columns: ['name', 'tagline', 'location', 'email'], fields: [field('name', 'Name', 'text', undefined, true), field('tagline'), field('location'), field('founded_year'), field('mission', 'Mission', 'textarea'), field('email'), field('phone'), field('address', 'Address', 'textarea'), field('currency_code')], canCreate: false, canDelete: false },
   website_sections: { table: 'website_sections', title: 'Website sections', description: 'Titles and structured content for public pages. Saving changes publishes them immediately.', columns: ['section_key', 'title'], fields: [field('section_key', 'Section key', 'text', undefined, true), field('title', 'Title', 'text', undefined, true), field('content', 'Page content', 'json')] },
   team_years: { table: 'team_years', title: 'Team years', description: 'Annual team rosters. Saving publishes the roster immediately.', columns: ['year_label'], fields: [field('year_label', 'Year', 'text', undefined, true), field('sort_order', 'Display order', 'number')] },
   team_members: { table: 'team_members', title: 'Team members', description: 'Staff and leadership biographies. Saving publishes the profile immediately.', columns: ['full_name', 'role_title'], fields: [referenceField('team_year_id', 'Team year', 'team_years', ['year_label'], true), field('full_name', 'Full name', 'text', undefined, true), field('role_title', 'Role title'), field('focus_area'), field('biography', 'Biography', 'textarea'), field('email'), field('avatar_url', 'Profile image', 'image'), field('sort_order', 'Display order', 'number')] },
@@ -83,28 +83,28 @@ const configs: Record<AdminTable, TableConfig> = {
   donation_campaigns: { table: 'donation_campaigns', title: 'Giving areas', description: 'Add the category, description, image, wanted and available amounts, currency, dates, and display order. Saving publishes the giving area on the public Donate page immediately.', columns: ['category', 'target_amount', 'raised_amount'], fields: [field('category', 'Category', 'text', undefined, true), field('description', 'Description', 'textarea', undefined, true), field('cover_image_url', 'Image', 'image', undefined, true), field('target_amount', 'Amount wanted', 'number', undefined, true), field('raised_amount', 'Amount available so far', 'number', undefined, true), field('currency_code', 'Currency', 'text', undefined, true), field('starts_at', 'Start date', 'date'), field('ends_at', 'End date', 'date'), field('sort_order', 'Display order', 'number')] },
   contact_details: { table: 'contact_details', title: 'Contact details', description: 'Official contact points displayed on the public website. Saving publishes them immediately.', columns: ['label', 'category', 'value'], fields: [field('label', 'Label', 'text', undefined, true), field('value', 'Value', 'text', undefined, true), field('category', 'Category', 'text', undefined, true), field('sort_order', 'Display order', 'number')] },
   social_links: { table: 'social_links', title: 'Social links', description: 'Verified organization social profiles. Saving publishes them immediately.', columns: ['platform', 'url'], fields: [field('platform', 'Platform', 'text', undefined, true), field('url', 'URL', 'text', undefined, true), field('sort_order', 'Display order', 'number')] },
-  newsletter_subscribers: { table: 'newsletter_subscribers', title: 'Newsletter subscribers', description: 'Only people who signed up are listed. Unsubscribing removes their record from this list.', columns: ['email', 'consented_at'], fields: [], canCreate: false, archiveLabel: 'Delete subscriber' },
-  volunteer_applications: { table: 'volunteer_applications', title: 'Volunteer applications', description: 'Review incoming volunteer interest and update its status.', columns: ['full_name', 'email', 'status', 'created_at'], fields: [field('status', 'Status', 'select', ['new', 'reviewing', 'accepted', 'declined'])], canCreate: false, canArchive: false },
+  newsletter_subscribers: { table: 'newsletter_subscribers', title: 'Newsletter subscribers', description: 'Only people who signed up are listed. Unsubscribing removes their record from this list.', columns: ['email', 'consented_at'], fields: [], canCreate: false, deleteLabel: 'Delete subscriber' },
+  volunteer_applications: { table: 'volunteer_applications', title: 'Volunteer applications', description: 'Review incoming volunteer interest and update its status.', columns: ['full_name', 'email', 'status', 'created_at'], fields: [field('status', 'Status', 'select', ['new', 'reviewing', 'accepted', 'declined'])], canCreate: false, canDelete: false },
   volunteers: { table: 'volunteers', title: 'Volunteer records', description: 'Volunteer contacts, skills and current status.', columns: ['full_name', 'email', 'status'], fields: [field('full_name', 'Full name', 'text', undefined, true), field('email', 'Email'), field('phone', 'Phone'), field('skills', 'Skills (one per line)', 'json'), field('status', 'Status', 'select', ['applicant', 'active', 'inactive']), field('joined_at', 'Joined date', 'date')] },
   volunteer_assignments: { table: 'volunteer_assignments', title: 'Volunteer assignments', description: 'Event assignments and scheduled volunteer hours.', columns: ['volunteer_id', 'role_title', 'starts_at', 'status'], fields: [referenceField('volunteer_id', 'Volunteer', 'volunteers', ['full_name', 'email'], true), referenceField('event_id', 'Event', 'events', ['title']), field('role_title', 'Assignment role'), field('starts_at', 'Starts at', 'datetime'), field('ends_at', 'Ends at', 'datetime'), field('hours', 'Hours', 'number'), field('status', 'Status', 'select', ['planned', 'confirmed', 'completed', 'cancelled'])] },
-  donations: { table: 'donations', title: 'Donation records', description: 'Record verified donations; never treat a browser submission as a payment.', columns: ['amount', 'currency_code', 'status', 'received_at'], fields: [referenceField('campaign_id', 'Campaign', 'donation_campaigns', ['title']), referenceField('donor_id', 'Donor', 'donors', ['full_name', 'organization_name']), field('amount', 'Amount', 'number', undefined, true), field('currency_code', 'Currency'), field('status', 'Status', 'select', ['pending', 'completed', 'failed', 'refunded', 'cancelled']), field('payment_provider', 'Provider'), field('provider_reference', 'Provider reference'), field('received_at', 'Received at', 'datetime'), field('notes', 'Notes', 'textarea')], canArchive: false },
-  donors: { table: 'donors', title: 'Donors', description: 'Private donor contact records.', columns: ['full_name', 'organization_name', 'is_anonymous'], fields: [field('full_name', 'Name'), field('email', 'Email'), field('phone', 'Phone'), field('organization_name', 'Organization'), field('is_anonymous', 'Anonymous', 'boolean')], canArchive: false },
+  donations: { table: 'donations', title: 'Donation records', description: 'Record verified donations; never treat a browser submission as a payment.', columns: ['amount', 'currency_code', 'status', 'received_at'], fields: [referenceField('campaign_id', 'Campaign', 'donation_campaigns', ['title']), referenceField('donor_id', 'Donor', 'donors', ['full_name', 'organization_name']), field('amount', 'Amount', 'number', undefined, true), field('currency_code', 'Currency'), field('status', 'Status', 'select', ['pending', 'completed', 'failed', 'refunded', 'cancelled']), field('payment_provider', 'Provider'), field('provider_reference', 'Provider reference'), field('received_at', 'Received at', 'datetime'), field('notes', 'Notes', 'textarea')], canDelete: false },
+  donors: { table: 'donors', title: 'Donors', description: 'Private donor contact records.', columns: ['full_name', 'organization_name', 'is_anonymous'], fields: [field('full_name', 'Name'), field('email', 'Email'), field('phone', 'Phone'), field('organization_name', 'Organization'), field('is_anonymous', 'Anonymous', 'boolean')], canDelete: false },
   donation_methods: { table: 'donation_methods', title: 'Donation methods', description: 'Add official bank, mobile-money, or other giving instructions. Saving makes them available to visitors immediately.', columns: ['label', 'method_type', 'details'], fields: [field('label', 'Method name', 'text', undefined, true), field('method_type', 'Method type', 'select', ['mobile_money', 'bank_transfer', 'other'], true), field('details', 'Account or contact details', 'textarea', undefined, true), field('instructions', 'Instructions', 'textarea'), field('sort_order', 'Display order', 'number')] },
-  contact_messages: { table: 'contact_messages', title: 'Contact inbox', description: 'Messages received from the public contact form.', columns: ['full_name', 'email', 'subject', 'status'], fields: [field('status', 'Status', 'select', ['new', 'in_progress', 'resolved', 'archived'])], canCreate: false, archiveLabel: 'Delete message' },
+  contact_messages: { table: 'contact_messages', title: 'Contact inbox', description: 'Messages received from the public contact form.', columns: ['full_name', 'email', 'subject', 'status'], fields: [field('status', 'Status', 'select', ['new', 'in_progress', 'resolved', 'archived'])], canCreate: false, deleteLabel: 'Delete message' },
   secretariat_documents: { table: 'secretariat_documents', title: 'Documents & minutes', description: 'Create minutes, memos and internal reports, or upload completed records for secure storage.', columns: ['title', 'document_type', 'meeting_date', 'status'], fields: [field('title', 'Title', 'text', undefined, true), field('document_type', 'Document type', 'select', ['note', 'meeting_minutes', 'memo', 'report']), field('meeting_date', 'Meeting date', 'date'), field('status', 'Status', 'select', ['draft', 'final']), field('body', 'Notes and attached files', 'document')] },
   department_updates: { table: 'department_updates', title: 'Department updates', description: 'Submit a period update for management review.', columns: ['department', 'period_start', 'period_end', 'status'], fields: [field('department', 'Department', 'text', undefined, true), field('period_start', 'Period start', 'date', undefined, true), field('period_end', 'Period end', 'date', undefined, true), field('summary', 'Summary', 'textarea', undefined, true), field('progress', 'Progress notes (one per line)', 'json'), field('status', 'Status', 'select', ['draft', 'submitted', 'reviewed'])] },
   families: { table: 'families', title: 'Family records', description: 'Confidential family data. Access follows organization roles and database RLS.', columns: ['household_code', 'primary_contact_name', 'district', 'status'], fields: [field('household_code', 'Household code'), field('primary_contact_name', 'Primary contact', 'text', undefined, true), field('phone', 'Phone'), field('email', 'Email'), field('address', 'Address', 'textarea'), field('district', 'District'), field('sector', 'Sector'), field('household_size', 'Household size', 'number'), field('vulnerability_notes', 'Restricted notes', 'textarea'), field('status', 'Status', 'select', ['active', 'inactive', 'closed'])] },
   children: { table: 'children', title: 'Child records', description: 'Restricted and sensitive child information. Follow safeguarding policies.', columns: ['child_code', 'first_name', 'school_name', 'enrollment_status'], fields: [referenceField('family_id', 'Family', 'families', ['primary_contact_name', 'household_code'], true), field('child_code', 'Child code'), field('first_name', 'First name', 'text', undefined, true), field('last_name', 'Last name'), field('date_of_birth', 'Date of birth', 'date'), field('gender', 'Gender', 'select', ['female', 'male', 'other', 'undisclosed']), field('school_name', 'School'), field('grade_level', 'Grade'), field('enrollment_status', 'Enrollment', 'select', ['enrolled', 'not_enrolled', 'graduated', 'unknown']), field('safeguarding_notes', 'Safeguarding notes', 'textarea'), field('status', 'Status', 'select', ['active', 'inactive', 'closed'])] },
   student_support_updates: { table: 'student_support_updates', title: 'Support milestones', description: 'Recorded support events in student journeys.', columns: ['child_id', 'occurred_on', 'category', 'title'], fields: [], readOnly: true },
   case_records: { table: 'case_records', title: 'Case records', description: 'Restricted case-management records. Keep factual notes and minimum necessary details.', columns: ['title', 'priority', 'status', 'opened_at'], fields: [referenceField('family_id', 'Family', 'families', ['primary_contact_name', 'household_code'], true), referenceField('child_id', 'Child', 'children', ['first_name', 'last_name', 'child_code']), referenceField('program_id', 'Program', 'programs', ['name']), field('title', 'Case title', 'text', undefined, true), field('description', 'Description', 'textarea'), field('priority', 'Priority', 'select', ['low', 'normal', 'high', 'urgent']), field('status', 'Status', 'select', ['open', 'in_progress', 'on_hold', 'resolved', 'closed']), field('closed_at', 'Closed at', 'datetime')] },
-  case_notes: { table: 'case_notes', title: 'Case notes', description: 'Internal notes; restricted notes are role-limited by RLS.', columns: ['case_id', 'visibility', 'created_at'], fields: [referenceField('case_id', 'Case', 'case_records', ['title'], true), field('note', 'Note', 'textarea', undefined, true), field('visibility', 'Visibility', 'select', ['internal', 'restricted'])], archiveLabel: 'Delete note' },
-  assistance_records: { table: 'assistance_records', title: 'Assistance records', description: 'Record assistance actually provided; amounts are not donations.', columns: ['assistance_type', 'quantity', 'amount', 'provided_at'], fields: [referenceField('family_id', 'Family', 'families', ['primary_contact_name', 'household_code'], true), referenceField('child_id', 'Child', 'children', ['first_name', 'last_name', 'child_code']), referenceField('case_id', 'Case', 'case_records', ['title']), referenceField('program_id', 'Program', 'programs', ['name']), field('assistance_type', 'Assistance type', 'text', undefined, true), field('description', 'Description', 'textarea'), field('quantity', 'Quantity', 'number'), field('amount', 'Amount', 'number'), field('currency_code', 'Currency')], canArchive: false },
+  case_notes: { table: 'case_notes', title: 'Case notes', description: 'Internal notes; restricted notes are role-limited by RLS.', columns: ['case_id', 'visibility', 'created_at'], fields: [referenceField('case_id', 'Case', 'case_records', ['title'], true), field('note', 'Note', 'textarea', undefined, true), field('visibility', 'Visibility', 'select', ['internal', 'restricted'])], deleteLabel: 'Delete note' },
+  assistance_records: { table: 'assistance_records', title: 'Assistance records', description: 'Record assistance actually provided; amounts are not donations.', columns: ['assistance_type', 'quantity', 'amount', 'provided_at'], fields: [referenceField('family_id', 'Family', 'families', ['primary_contact_name', 'household_code'], true), referenceField('child_id', 'Child', 'children', ['first_name', 'last_name', 'child_code']), referenceField('case_id', 'Case', 'case_records', ['title']), referenceField('program_id', 'Program', 'programs', ['name']), field('assistance_type', 'Assistance type', 'text', undefined, true), field('description', 'Description', 'textarea'), field('quantity', 'Quantity', 'number'), field('amount', 'Amount', 'number'), field('currency_code', 'Currency')], canDelete: false },
   audit_events: { table: 'audit_events', title: 'Audit history', description: 'Append-only record of database changes. Sensitive row values are not included.', columns: ['table_name', 'record_id', 'action', 'occurred_at'], fields: [], readOnly: true },
   email_notification_jobs: { table: 'email_notification_jobs', title: 'Notification delivery queue', description: 'Provider delivery state. Email sending requires a server-side provider configuration.', columns: ['notification_type', 'status', 'recipient_count', 'created_at'], fields: [], readOnly: true },
   website_page_views: { table: 'website_page_views', title: 'Website page views', description: 'Anonymous page-view records for basic traffic reporting.', columns: ['page_path', 'referrer_host', 'country_code', 'created_at'], fields: [], readOnly: true },
-  grant_opportunities: { table: 'grant_opportunities', title: 'Grant opportunities', description: 'Track verified funding opportunities and application progress.', columns: ['title', 'funder_name', 'status', 'deadline'], fields: [field('title', 'Opportunity title', 'text', undefined, true), field('funder_name', 'Funder', 'text', undefined, true), field('status', 'Status', 'select', ['researching', 'planned', 'in_progress', 'submitted', 'awarded', 'declined', 'archived']), field('focus_area', 'Focus area'), field('amount', 'Potential amount', 'number'), field('currency_code', 'Currency'), field('deadline', 'Deadline', 'date'), field('application_url', 'Application URL'), field('notes', 'Notes', 'textarea')], archiveLabel: 'Archive opportunity' },
+  grant_opportunities: { table: 'grant_opportunities', title: 'Grant opportunities', description: 'Track verified funding opportunities and application progress.', columns: ['title', 'funder_name', 'status', 'deadline'], fields: [field('title', 'Opportunity title', 'text', undefined, true), field('funder_name', 'Funder', 'text', undefined, true), field('status', 'Status', 'select', ['researching', 'planned', 'in_progress', 'submitted', 'awarded', 'declined', 'archived']), field('focus_area', 'Focus area'), field('amount', 'Potential amount', 'number'), field('currency_code', 'Currency'), field('deadline', 'Deadline', 'date'), field('application_url', 'Application URL'), field('notes', 'Notes', 'textarea')], deleteLabel: 'Delete opportunity' },
   finance_transactions: { table: 'finance_transactions', title: 'Finance records', description: 'Track income, spending, team contributions and supporting document references.', columns: ['transaction_date', 'transaction_type', 'category', 'description', 'amount', 'currency_code', 'status'], fields: [field('transaction_type', 'Record type', 'select', ['income', 'expense', 'team_contribution']), field('category', 'Category', 'text', undefined, true), field('description', 'Description', 'text', undefined, true), field('amount', 'Amount', 'number', undefined, true), field('currency_code', 'Currency', 'text', undefined, true), field('transaction_date', 'Transaction date', 'date', undefined, true), field('payment_method', 'Payment method'), field('reference_number', 'Reference number'), field('document_url', 'External document link'), field('document_path', 'Private supporting file', 'private-file'), field('notes', 'Notes', 'textarea'), field('status', 'Status', 'select', ['draft', 'confirmed', 'cancelled'])] },
-  staff_accounts: { table: 'staff_accounts', title: 'Staff accounts', description: 'Review staff sign-in accounts and securely update work email or password.', columns: ['portal', 'account_email', 'role', 'team_members'], fields: [], readOnly: true, canCreate: false, canArchive: false },
+  staff_accounts: { table: 'staff_accounts', title: 'Staff accounts', description: 'Review staff sign-in accounts and securely update work email or password.', columns: ['portal', 'account_email', 'role', 'team_members'], fields: [], readOnly: true, canCreate: false, canDelete: false },
 };
 
 const staffAccountDirectory = [
@@ -772,7 +772,8 @@ function AdminProgressWorkspace() {
   const [message, setMessage] = useState<string | null>(null);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const activeGroup = progressGroups.find((group) => group.key === selectedGroup) ?? progressGroups[0];
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     setError(null);
     try {
       const [metricsResult, events] = await Promise.all([
@@ -782,25 +783,29 @@ function AdminProgressWorkspace() {
       if (metricsResult.error) throw new Error(`Portal metrics could not be loaded: ${metricsResult.error.message}`);
       setMetrics(metricsResult.data ?? []);
       setHistory(events);
+      return true;
     } catch (loadError) {
+      setMetrics([]);
+      setHistory([]);
       setError(loadError instanceof Error ? loadError.message : 'Portal progress could not be loaded.');
+      return false;
     } finally {
       setLoading(false);
     }
   }, [client]);
 
   useEffect(() => {
-    void Promise.resolve().then(refresh);
+    void Promise.resolve().then(() => refresh());
     let active = true;
     const channel = client.channel('admin-portal-progress')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'audit_events' }, () => { void refresh(); });
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'audit_events' }, () => { void refresh(true); });
     channel.subscribe((status) => {
       if (!active) return;
       if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
         setError(`Live progress updates are unavailable (${status}). Use Refresh to check current data.`);
       }
     });
-    const fallback = window.setInterval(() => { void refresh(); }, 30_000);
+    const fallback = window.setInterval(() => { void refresh(true); }, 30_000);
     return () => {
       active = false;
       window.clearInterval(fallback);
@@ -820,11 +825,16 @@ function AdminProgressWorkspace() {
     setError(null);
     setMessage(null);
     try {
-      const { data, error: deleteError } = await client.rpc('delete_audit_events_by_ids', { p_event_ids: selectedEvents });
+      const eventIds = selectedEvents.map(Number);
+      if (eventIds.some((id) => !Number.isSafeInteger(id) || id <= 0)) {
+        throw new Error('Some selected audit IDs are invalid. Refresh the history and try again.');
+      }
+      const { data, error: deleteError } = await client.rpc('delete_audit_events_by_ids', { p_event_ids: eventIds });
       if (deleteError) throw new Error(deleteError.message);
-      await refresh();
+      const refreshed = await refresh();
       setSelectedEvents([]);
       setConfirmDeleteOpen(false);
+      if (!refreshed) throw new Error('History was deleted, but progress could not be refreshed. Use Refresh to check the latest data.');
       if (typeof data !== 'number' || data !== selectedEvents.length) {
         throw new Error(`Only ${typeof data === 'number' ? data : 0} of ${selectedEvents.length} selected audit entries were deleted. The list has been refreshed.`);
       }
@@ -1222,7 +1232,7 @@ function RecordWorkspace({ config }: { config: TableConfig }) {
     }
   };
 
-  const archive = async (row: DataRow) => {
+  const removeRecord = async (row: DataRow) => {
     const recordId = typeof row.id === 'string' ? row.id : '';
     if (!recordId) {
       setError('This record cannot be removed because it has no database ID.');
@@ -1231,13 +1241,13 @@ function RecordWorkspace({ config }: { config: TableConfig }) {
     setBusy(true);
     setError(null);
     try {
-      await archiveAdminRow(config.table, row);
+      await deleteAdminRow(config.table, row);
       setConfirmingId(null);
       setRows((current) => current.filter((item) => String(item.id ?? '') !== recordId));
       await refresh(search);
-    } catch (archiveError) {
+    } catch (deleteError) {
       setConfirmingId(null);
-      setError(archiveError instanceof Error ? archiveError.message : 'Could not archive this record.');
+      setError(deleteError instanceof Error ? deleteError.message : 'Could not permanently delete this record.');
     } finally {
       setBusy(false);
     }
@@ -1374,7 +1384,7 @@ function RecordWorkspace({ config }: { config: TableConfig }) {
               <div className="record-preview-content"><div className="card-kicker">{subtitle}</div><h3>{title}</h3><p>{String(row.biography ?? row.caption ?? row.description ?? row.summary ?? '') || 'No biography has been added.'}</p>
                 <div className="record-preview-actions">
                   {canEdit && <button className="button button-outline button-small" type="button" onClick={() => { setEditing(row); setIsNew(false); setFieldErrors({}); setError(null); }}><Pencil size={13} /> Edit</button>}
-                  {canEdit && config.canArchive !== false && <button className="button button-danger button-small" type="button" onClick={() => setConfirmingId(confirmingId === rowId ? null : rowId)} disabled={busy}><Trash2 size={13} /> Delete</button>}
+                  {canEdit && config.canDelete !== false && <button className="button button-danger button-small" type="button" onClick={() => setConfirmingId(confirmingId === rowId ? null : rowId)} disabled={busy}><Trash2 size={13} /> Delete</button>}
                 </div>
               </div>
             </article>;
@@ -1385,7 +1395,7 @@ function RecordWorkspace({ config }: { config: TableConfig }) {
           <table className="data-table"><thead><tr>{config.columns.map((column) => <th key={column}>{column.replaceAll('_', ' ')}</th>)}{!config.readOnly && <th>Actions</th>}</tr></thead><tbody>
             {visibleRows.map((row, index) => {
               const rowId = String(row.id ?? index);
-              const removeLabel = config.archiveLabel ?? 'Archive record';
+              const removeLabel = config.deleteLabel ?? 'Delete record permanently';
               const financeDocumentPath = typeof row.document_path === 'string' ? row.document_path : null;
               const financeDocumentName = typeof row.document_name === 'string' ? row.document_name : null;
               return (
@@ -1400,7 +1410,7 @@ function RecordWorkspace({ config }: { config: TableConfig }) {
                       </>}
                       {config.table === 'finance_transactions' && financeDocumentPath && financeDocumentName && <button className="icon-button" type="button" onClick={() => void downloadStorageFile('finance-documents', financeDocumentPath, financeDocumentName, setError)} aria-label={`Download ${financeDocumentName}`} title={`Download ${financeDocumentName}`}><FileDown size={14} /></button>}
                       {canEdit && config.table !== 'newsletter_subscribers' && <button className="icon-button" type="button" onClick={() => { setEditing(row); setIsNew(false); setFieldErrors({}); setError(null); }} aria-label="Edit record" title="Edit record"><Pencil size={14} /></button>}
-                      {canEdit && config.canArchive !== false && <button className="icon-button" type="button" onClick={() => setConfirmingId(confirmingId === rowId ? null : rowId)} disabled={busy} aria-label={removeLabel} title={removeLabel}><Trash2 size={14} /></button>}
+                      {canEdit && config.canDelete !== false && <button className="icon-button" type="button" onClick={() => setConfirmingId(confirmingId === rowId ? null : rowId)} disabled={busy} aria-label={removeLabel} title={removeLabel}><Trash2 size={14} /></button>}
                     </div>
                   </td>}
                 </tr>
@@ -1412,14 +1422,14 @@ function RecordWorkspace({ config }: { config: TableConfig }) {
       {!loading && rows.length > pageSize && <div className="pagination"><span className="field-hint">Showing {page * pageSize + 1}–{Math.min((page + 1) * pageSize, rows.length)} of {rows.length}</span><div className="row-actions"><button className="button button-outline button-small" type="button" disabled={page === 0} onClick={() => setPage((current) => current - 1)}>Previous</button><button className="button button-outline button-small" type="button" disabled={(page + 1) * pageSize >= rows.length} onClick={() => setPage((current) => current + 1)}>Next</button></div></div>}
       {editing && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setEditing(null); }}><div className="modal record-modal" role="dialog" aria-modal="true" aria-labelledby="record-editor-title"><div className="modal-header"><div><div className="eyebrow">{isNew ? 'Create record' : 'Update record'}</div><h2 id="record-editor-title">{config.title}</h2></div><button className="icon-button" type="button" onClick={() => setEditing(null)} aria-label="Close form"><X size={17} /></button></div><form className="modal-body" noValidate onSubmit={(event) => void save(event)}>{['events', 'announcements'].includes(config.table) && <div className="notice"><Shield size={16} /><span>Subscriber email notifications are not configured. Publishing a record will not send email.</span></div>}<div className="form-grid">{config.fields.filter((item) => item.key !== 'consent_received' || isNew).map((item) => <FieldEditor key={item.key} field={item} value={getEditorFieldValue(editing, item)} folder={safeName(config.table)} isNew={isNew} error={fieldErrors[item.key]} />)}</div>{error && <div role="alert" className="form-message error">{error}</div>}<div className="record-form-actions"><button type="button" className="button button-outline" disabled={busy} onClick={() => setEditing(null)}>Cancel</button><button type="submit" className="button button-primary" disabled={busy}>{busy ? 'Saving…' : isNew ? 'Create record' : 'Save changes'} <Check size={14} /></button></div></form></div></div>}
       {confirmingRow && <ConfirmActionDialog
-        title={`${config.archiveLabel ?? 'Archive record'}?`}
+        title={`${config.deleteLabel ?? 'Delete record'} permanently?`}
         message={config.table === 'newsletter_subscribers'
-          ? `This permanently deletes ${String(confirmingRow.email ?? 'this email address')} from the subscriber list.`
-          : `This will remove “${String(confirmingRow.title ?? confirmingRow.name ?? 'this record')}” from the active records. You can’t undo this here.`}
+          ? `This permanently deletes ${String(confirmingRow.email ?? 'this email address')} from the subscriber list. This cannot be undone.`
+          : `This permanently deletes “${String(confirmingRow.title ?? confirmingRow.name ?? confirmingRow.full_name ?? 'this record')}”. Linked records may also be deleted or may prevent deletion. This cannot be undone.`}
         confirmLabel={busy ? 'Working…' : 'Confirm'}
         busy={busy}
         onCancel={() => setConfirmingId(null)}
-        onConfirm={() => void archive(confirmingRow)}
+        onConfirm={() => void removeRecord(confirmingRow)}
       />}
     </section>
   );
