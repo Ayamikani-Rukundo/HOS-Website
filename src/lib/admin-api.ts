@@ -6,7 +6,7 @@ export type AdminTable =
   | 'team_years'
   | 'team_members'
   | 'programs'
-  | 'projects'
+  | 'partner_organizations'
   | 'galleries'
   | 'events'
   | 'announcements'
@@ -14,20 +14,21 @@ export type AdminTable =
   | 'donation_campaigns'
   | 'contact_details'
   | 'social_links'
-  | 'impact_metrics'
-  | 'success_stories'
   | 'newsletter_subscribers'
   | 'website_page_views'
   | 'volunteer_applications'
   | 'volunteers'
   | 'volunteer_assignments'
   | 'donations'
+  | 'donation_methods'
+  | 'finance_transactions'
   | 'donors'
   | 'contact_messages'
   | 'secretariat_documents'
   | 'department_updates'
   | 'families'
   | 'children'
+  | 'student_support_updates'
   | 'case_records'
   | 'case_notes'
   | 'assistance_records'
@@ -37,6 +38,14 @@ export type AdminTable =
   | 'staff_accounts';
 
 export type DataRow = Record<string, unknown>;
+
+export type StaffAccount = {
+  user_id: string;
+  email: string;
+  full_name: string;
+  roles: string[];
+  created_at: string;
+};
 
 const request = async <T>(
   table: AdminTable,
@@ -102,12 +111,13 @@ export async function listAdminRows(table: AdminTable, search = '') {
 
   const filters = ['select=*'];
   const archivedTables: AdminTable[] = [
-    'projects',
     'galleries',
+    'partner_organizations',
     'events',
     'announcements',
     'campaign_categories',
     'donation_campaigns',
+    'finance_transactions',
     'contact_details',
     'social_links',
     'secretariat_documents',
@@ -116,11 +126,17 @@ export async function listAdminRows(table: AdminTable, search = '') {
   if (archivedTables.includes(table)) {
     filters.push('archived_at=is.null');
   }
+  if (table === 'newsletter_subscribers') {
+    filters.push('is_confirmed=eq.true', 'unsubscribed_at=is.null');
+  }
   if (table === 'organizations') filters.push('order=created_at.asc');
-  else if (table === 'website_sections' || table === 'impact_metrics') filters.push('order=updated_at.desc');
+  else if (table === 'website_sections') filters.push('order=updated_at.desc');
+  else if (table === 'partner_organizations') filters.push('order=sort_order.asc,name.asc');
   else if (table === 'audit_events') filters.push('order=occurred_at.desc');
   else if (table === 'secretariat_documents' || table === 'department_updates' || table === 'grant_opportunities') {
     filters.push('order=updated_at.desc');
+  } else if (table === 'finance_transactions') {
+    filters.push('order=transaction_date.desc');
   } else {
     filters.push('order=created_at.desc');
   }
@@ -136,6 +152,33 @@ export async function listAdminRows(table: AdminTable, search = '') {
         String(value).toLocaleLowerCase().includes(normalizedSearch),
     ),
   );
+}
+
+export async function listStaffAccounts() {
+  const { data, error } = await getSupabaseClient().functions.invoke<{ accounts: StaffAccount[] }>(
+    'admin-manage-staff',
+    { body: { action: 'list' } },
+  );
+  if (error) throw new Error(`Unable to load staff accounts: ${error.message}`);
+  if (!data) throw new Error('The staff account service returned no account list.');
+  return data.accounts;
+}
+
+export async function updateStaffAccount(userId: string, email: string, password: string) {
+  const { data, error } = await getSupabaseClient().functions.invoke<{
+    account: Pick<StaffAccount, 'user_id' | 'email' | 'roles'>;
+    auditWarning?: string;
+  }>('admin-manage-staff', {
+    body: {
+      action: 'update',
+      userId,
+      ...(email.trim() ? { email: email.trim() } : {}),
+      ...(password ? { password } : {}),
+    },
+  });
+  if (error) throw new Error(`Unable to update staff account: ${error.message}`);
+  if (!data) throw new Error('The staff account service returned no update result.');
+  return { ...data.account, auditWarning: data.auditWarning };
 }
 
 export async function loadAdminAnalytics(days = 30) {
@@ -188,7 +231,7 @@ export async function archiveAdminRow(table: AdminTable, row: DataRow) {
     team_years: { is_published: false, active: false },
     team_members: { is_published: false, status: 'archived' },
     programs: { is_published: false },
-    projects: { is_published: false, archived_at: new Date().toISOString() },
+    partner_organizations: { is_published: false, archived_at: new Date().toISOString() },
     galleries: { is_published: false, archived_at: new Date().toISOString() },
     events: { is_published: false, status: 'archived', archived_at: new Date().toISOString() },
     announcements: { is_published: false, status: 'archived', archived_at: new Date().toISOString() },
@@ -196,19 +239,20 @@ export async function archiveAdminRow(table: AdminTable, row: DataRow) {
     donation_campaigns: { is_published: false, status: 'archived', archived_at: new Date().toISOString() },
     contact_details: { is_public: false, archived_at: new Date().toISOString() },
     social_links: { is_active: false, archived_at: new Date().toISOString() },
-    impact_metrics: { is_published: false },
-    success_stories: { is_published: false },
-    newsletter_subscribers: { unsubscribed_at: new Date().toISOString() },
+    newsletter_subscribers: null,
     volunteer_applications: null,
     volunteers: { status: 'inactive' },
     volunteer_assignments: { status: 'cancelled' },
     donations: null,
+    donation_methods: { is_active: false, is_public: false },
+    finance_transactions: { archived_at: new Date().toISOString() },
     donors: null,
     contact_messages: null,
     secretariat_documents: { status: 'archived', archived_at: new Date().toISOString() },
     department_updates: { status: 'archived' },
     families: { status: 'closed' },
     children: { status: 'closed' },
+    student_support_updates: null,
     case_records: { status: 'closed', closed_at: new Date().toISOString() },
     case_notes: null,
     assistance_records: null,

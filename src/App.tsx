@@ -4,7 +4,7 @@ import { BrowserRouter, Link, Navigate, Route, Routes, useLocation, useNavigate 
 import { SiteFooter, SiteHeader } from './components/SiteChrome';
 import { AuthProvider } from './lib/auth';
 import { useAuth } from './lib/auth-context';
-import { getPortals, portalDetails, type PortalKind } from './lib/authorization';
+import { getPortals, type OrganizationRole, type PortalKind } from './lib/authorization';
 import { SiteContentProvider } from './lib/site-content';
 import { useSiteContent } from './lib/site-content-context';
 import { isSupabaseConfigured } from './lib/supabase';
@@ -15,13 +15,14 @@ const HomePage = lazy(() => import('./pages/PublicPages').then((pages) => ({ def
 const AboutPage = lazy(() => import('./pages/PublicPages').then((pages) => ({ default: pages.AboutPage })));
 const TeamPage = lazy(() => import('./pages/PublicPages').then((pages) => ({ default: pages.TeamPage })));
 const ProgramsPage = lazy(() => import('./pages/PublicPages').then((pages) => ({ default: pages.ProgramsPage })));
-const ProjectsPage = lazy(() => import('./pages/PublicPages').then((pages) => ({ default: pages.ProjectsPage })));
-const ImpactPage = lazy(() => import('./pages/PublicPages').then((pages) => ({ default: pages.ImpactPage })));
+const PartnersPage = lazy(() => import('./pages/PartnersPage').then((pages) => ({ default: pages.PartnersPage })));
 const GalleryPage = lazy(() => import('./pages/PublicPages').then((pages) => ({ default: pages.GalleryPage })));
 const EventsPage = lazy(() => import('./pages/PublicPages').then((pages) => ({ default: pages.EventsPage })));
 const DonatePage = lazy(() => import('./pages/PublicPages').then((pages) => ({ default: pages.DonatePage })));
 const ContactPage = lazy(() => import('./pages/PublicPages').then((pages) => ({ default: pages.ContactPage })));
 const UnsubscribePage = lazy(() => import('./pages/PublicPages').then((pages) => ({ default: pages.UnsubscribePage })));
+const StudentDirectoryPage = lazy(() => import('./pages/StudentPages').then((pages) => ({ default: pages.StudentDirectoryPage })));
+const StudentProfilePage = lazy(() => import('./pages/StudentPages').then((pages) => ({ default: pages.StudentProfilePage })));
 const WorkspacePage = lazy(() => import('./pages/WorkspacePage').then((pages) => ({ default: pages.WorkspacePage })));
 
 function App() {
@@ -42,6 +43,7 @@ function AppShell() {
   const { pathname } = useLocation();
   const { user, signOut } = useAuth();
   const isInternalRoute = /^\/(portal|workspace|dashboard)(\/|$)/.test(pathname);
+  const isWorkspaceRoute = /^\/(workspace|dashboard)(\/|$)/.test(pathname);
   const wasInInternalRoute = useRef(isInternalRoute);
   const [sessionExitError, setSessionExitError] = useState<{ pathname: string; message: string } | null>(null);
 
@@ -67,11 +69,11 @@ function AppShell() {
   }, [isInternalRoute, pathname, signOut, user]);
 
   return (
-    <div className={`site${isInternalRoute ? ' internal-site' : pathname === '/' ? ' home-site' : ''}`}>
+    <div className={`site${isWorkspaceRoute ? ' internal-site' : pathname === '/' ? ' home-site' : ''}`}>
       <PageViewTracker />
       <RouteScrollReset />
-      {!isInternalRoute && <SiteHeader />}
-      {!isInternalRoute && <DatabaseStatus />}
+      {!isWorkspaceRoute && <SiteHeader />}
+      {!isWorkspaceRoute && <DatabaseStatus />}
       {sessionExitError?.pathname === pathname && <div role="alert" className="database-status has-error portal-session-error">Your portal session could not be ended: {sessionExitError.message}</div>}
       <main>
         <Suspense fallback={<div className="wrap section-tight"><div className="loading-inline"><span className="loading-dot" /> Loading Heart of Sympathy…</div></div>}>
@@ -80,9 +82,12 @@ function AppShell() {
               <Route path="/" element={<HomePage />} />
               <Route path="/about" element={<AboutPage />} />
               <Route path="/team" element={<TeamPage />} />
+              <Route path="/students" element={<StudentDirectoryPage />} />
+              <Route path="/students/:slug" element={<StudentProfilePage />} />
               <Route path="/programs" element={<ProgramsPage />} />
-              <Route path="/projects" element={<ProjectsPage />} />
-              <Route path="/impact" element={<ImpactPage />} />
+              <Route path="/partners" element={<PartnersPage />} />
+              <Route path="/projects" element={<Navigate to="/partners" replace />} />
+              <Route path="/impact" element={<Navigate to="/partners" replace />} />
               <Route path="/gallery" element={<GalleryPage />} />
               <Route path="/events" element={<EventsPage />} />
               <Route path="/donate" element={<DonatePage />} />
@@ -97,7 +102,7 @@ function AppShell() {
           </PageTransition>
         </Suspense>
       </main>
-      {!isInternalRoute && <SiteFooter />}
+      {!isWorkspaceRoute && <SiteFooter />}
     </div>
   );
 }
@@ -173,11 +178,11 @@ function PageViewTracker() {
 }
 
 function DatabaseStatus() {
-  const { error, isLoading } = useSiteContent();
-  if (!error && !isLoading) return null;
+  const { error } = useSiteContent();
+  if (!error) return null;
   return (
-    <div role={error ? 'alert' : 'status'} className={`database-status${error ? ' has-error' : ''}`}>
-      {error ?? 'Loading published organization information…'}
+    <div role="alert" className="database-status has-error">
+      {error}
     </div>
   );
 }
@@ -187,42 +192,69 @@ function PortalPage() {
   const { signIn, signOut, error: authError, user, roles, isLoading } = useAuth();
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [selectedPortal, setSelectedPortal] = useState<PortalKind | null>(null);
+  const [selectedPortal, setSelectedPortal] = useState<OrganizationRole | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const loginPanelRef = useRef<HTMLElement>(null);
 
   if (user && !isLoading && roles.length > 0 && !isSubmitting) return <Navigate to="/workspace" replace />;
   const portalChoices: {
-    id: PortalKind;
+    role: OrganizationRole;
+    workspace: PortalKind;
+    label: string;
     description: string;
     icon: typeof BookOpen;
   }[] = [
     {
-      id: 'content',
+      role: 'admin',
+      workspace: 'content',
+      label: 'Administration',
       description: 'Organization administration, leadership oversight and public communications.',
       icon: BookOpen,
     },
     {
-      id: 'secretariat',
-      description: 'Official records, meeting minutes, department updates and assigned volunteer coordination.',
+      role: 'communications',
+      workspace: 'content',
+      label: 'Communications',
+      description: 'Public website content, announcements and organization communications.',
       icon: FileText,
     },
     {
-      id: 'finance',
+      role: 'secretariat',
+      workspace: 'secretariat',
+      label: 'Secretariat',
+      description: 'Official records, meeting minutes and completed documents.',
+      icon: FileText,
+    },
+    {
+      role: 'volunteer_manager',
+      workspace: 'secretariat',
+      label: 'Volunteer Management',
+      description: 'Volunteer applications and shared partner, subscriber, and contact records.',
+      icon: HeartHandshake,
+    },
+    {
+      role: 'finance',
+      workspace: 'finance',
+      label: 'Finance',
       description: 'Verified donation records and financial tracking.',
       icon: CircleDollarSign,
     },
     {
-      id: 'programs',
-      description: 'Program delivery, community outreach and confidential child and family support.',
+      role: 'program_manager',
+      workspace: 'programs',
+      label: 'Programs / Child Support',
+      description: 'Program delivery, community outreach and child and family support.',
       icon: HeartHandshake,
     },
     {
-      id: 'fundraising',
-      description: 'Fundraising campaigns, grant opportunities and partnership records.',
+      role: 'fundraiser',
+      workspace: 'fundraising',
+      label: 'Fundraising / Grants',
+      description: 'Fundraising campaigns, donor relationships and grant opportunities.',
       icon: HeartHandshake,
     },
   ];
-  const activeChoice = portalChoices.find((choice) => choice.id === selectedPortal);
+  const activeChoice = portalChoices.find((choice) => choice.role === selectedPortal);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -230,16 +262,24 @@ function PortalPage() {
       setFormError('Choose your department workspace first.');
       return;
     }
+    const selectedChoice = portalChoices.find((choice) => choice.role === selectedPortal);
+    if (!selectedChoice) {
+      setFormError('Choose a valid department workspace.');
+      return;
+    }
     setFormError(null);
     setIsSubmitting(true);
     const formData = new FormData(event.currentTarget);
     try {
       const assignedRoles = await signIn(String(formData.get('email') ?? ''), String(formData.get('password') ?? ''));
-      if (!getPortals(assignedRoles).includes(selectedPortal)) {
+      const selectedRoles = selectedPortal === 'program_manager'
+        ? ['program_manager', 'case_worker']
+        : [selectedPortal];
+      if (!selectedRoles.some((role) => assignedRoles.includes(role as OrganizationRole))) {
         await signOut();
-        throw new Error(`This account is not assigned to ${portalDetails[selectedPortal].label}. Choose the workspace assigned to your account.`);
+        throw new Error(`This account is not assigned to ${selectedChoice.label}. Choose the workspace assigned to your account.`);
       }
-      navigate(`/workspace/${selectedPortal}`, { replace: true });
+      navigate(`/workspace/${selectedChoice.workspace}`, { replace: true });
     } catch (error) {
       setFormError(error instanceof Error ? error.message : 'Sign-in failed.');
     } finally {
@@ -250,7 +290,7 @@ function PortalPage() {
   return (
     <div className="portal-login-layout">
       <div className="portal-login-card">
-        <Link className="portal-cancel-link" to="/" aria-label="Cancel and return to the public website" title="Cancel and return to the public website">
+        <Link className="portal-cancel-link" to="/" aria-label="Cancel and return to the public website">
           <X size={17} /><span>Cancel</span>
         </Link>
         <aside className="portal-picker">
@@ -265,29 +305,33 @@ function PortalPage() {
               return (
                 <button
                   type="button"
-                  className={`portal-choice${selectedPortal === choice.id ? ' active' : ''}`}
-                  key={choice.id}
-                  aria-pressed={selectedPortal === choice.id}
-                  onClick={() => { setSelectedPortal(choice.id); setFormError(null); }}
+                  className={`portal-choice${selectedPortal === choice.role ? ' active' : ''}`}
+                  key={choice.role}
+                  aria-pressed={selectedPortal === choice.role}
+                  onClick={() => {
+                    setSelectedPortal(choice.role);
+                    setFormError(null);
+                    requestAnimationFrame(() => loginPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+                  }}
                 >
                   <Icon size={17} />
-                  <span><strong>{portalDetails[choice.id].label}</strong><small>{choice.description}</small></span>
+                  <span><strong>{choice.label}</strong><small>{choice.description}</small></span>
                   <ArrowRight size={14} />
                 </button>
               );
             })}
           </nav>
         </aside>
-        <section className="portal-login-panel" aria-live="polite">
+        <section className="portal-login-panel" aria-live="polite" ref={loginPanelRef}>
           {activeChoice ? (
             <>
               <div className="eyebrow">Secure team access</div>
-              <h2>{portalDetails[activeChoice.id].label}</h2>
+              <h2>{activeChoice.label}</h2>
               <p>{activeChoice.description}</p>
               <div className="notice portal-login-notice"><ShieldCheck size={16} /><span>Your account’s database role controls what you can view and change.</span></div>
               <form className="record-form portal-signin-form" onSubmit={(event) => void handleSubmit(event)}>
                 <label className="field"><span className="field-label">Work email</span><input className="input" name="email" required type="email" autoComplete="username" /></label>
-                <label className="field"><span className="field-label">Password</span><span className="password-input-wrap"><input className="input" name="password" required type={showPassword ? 'text' : 'password'} autoComplete="current-password" /><button className="password-visibility" type="button" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword} title={showPassword ? 'Hide password' : 'Show password'}>{showPassword ? <EyeOff size={16} /> : <Eye size={16} />}</button></span></label>
+                <label className="field"><span className="field-label">Password</span><span className="password-input-wrap"><input className="input" name="password" required type={showPassword ? 'text' : 'password'} autoComplete="current-password" /><button className="password-visibility" type="button" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword}>{showPassword ? <EyeOff size={16} /> : <Eye size={16} />}</button></span></label>
                 {(formError ?? authError) && <div role="alert" className="form-message error">{formError ?? authError}</div>}
                 <button disabled={isSubmitting || !isSupabaseConfigured} type="submit" className="button button-primary portal-signin-button">
                   {isSubmitting ? 'Signing in…' : 'Sign in to this workspace'} <ArrowRight size={14} />

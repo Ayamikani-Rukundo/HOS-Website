@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import {
   ArrowDownToLine,
   ArrowLeft,
@@ -10,6 +10,7 @@ import {
   CircleDollarSign,
   FileDown,
   FileText,
+  FileUp,
   HeartHandshake,
   Eye,
   ImageUp,
@@ -29,18 +30,23 @@ import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../lib/auth-context';
 import { canAccessRole, getPortalTeam, getPortals, type OrganizationRole, type PortalKind } from '../lib/authorization';
 import { getSupabaseClient } from '../lib/supabase';
+import { StudentSupportWorkspace } from './StudentSupportWorkspace';
 import {
   archiveAdminRow,
   loadAdminAnalytics,
   listAdminRows,
   saveAdminRow,
+  listStaffAccounts,
+  updateStaffAccount,
   uploadPublicImage,
   type AdminTable,
   type DataRow,
+  type StaffAccount,
 } from '../lib/admin-api';
 
-type FieldKind = 'text' | 'textarea' | 'number' | 'date' | 'datetime' | 'boolean' | 'select' | 'json' | 'tags' | 'image' | 'image-list' | 'reference';
+type FieldKind = 'text' | 'textarea' | 'number' | 'date' | 'datetime' | 'boolean' | 'select' | 'json' | 'tags' | 'image' | 'image-list' | 'document' | 'private-file' | 'reference';
 type Field = { key: string; label: string; kind?: FieldKind; required?: boolean; options?: string[]; placeholder?: string; referenceTable?: AdminTable; referenceLabel?: string[] };
+type DocumentAttachment = { path: string; name: string; size: number; type: string };
 type TableConfig = {
   table: AdminTable;
   title: string;
@@ -65,39 +71,40 @@ const referenceField = (key: string, label: string, referenceTable: AdminTable, 
 
 const configs: Record<AdminTable, TableConfig> = {
   organizations: { table: 'organizations', title: 'Organization profile', description: 'Public identity and official contact details.', columns: ['name', 'tagline', 'location', 'email'], fields: [field('name', 'Name', 'text', undefined, true), field('tagline'), field('location'), field('founded_year'), field('mission', 'Mission', 'textarea'), field('email'), field('phone'), field('address', 'Address', 'textarea'), field('currency_code')], canCreate: false, canArchive: false },
-  website_sections: { table: 'website_sections', title: 'Website sections', description: 'Titles and structured content for public pages.', columns: ['section_key', 'title', 'is_published'], fields: [field('section_key', 'Section key', 'text', undefined, true), field('title', 'Title', 'text', undefined, true), field('content', 'Page content', 'json'), field('is_published', 'Published', 'boolean')] },
-  team_years: { table: 'team_years', title: 'Team years', description: 'Published annual team rosters.', columns: ['year_label', 'active', 'is_published'], fields: [field('year_label', 'Year', 'text', undefined, true), field('active', 'Active', 'boolean'), field('is_published', 'Published', 'boolean'), field('sort_order', 'Display order', 'number')] },
-  team_members: { table: 'team_members', title: 'Team members', description: 'Approved staff and leadership biographies.', columns: ['full_name', 'role_title', 'status', 'is_published'], fields: [referenceField('team_year_id', 'Team year', 'team_years', ['year_label'], true), field('full_name', 'Full name', 'text', undefined, true), field('role_title', 'Role title'), field('focus_area'), field('biography', 'Biography', 'textarea'), field('email'), field('avatar_url', 'Profile image', 'image'), field('status', 'Status', 'select', ['active', 'inactive', 'archived']), field('is_published', 'Published', 'boolean'), field('sort_order', 'Display order', 'number')] },
-  programs: { table: 'programs', title: 'Programs', description: 'Public program information and summaries.', columns: ['name', 'slug', 'is_published'], fields: [field('slug', 'URL slug', 'text', undefined, true), field('name', 'Name', 'text', undefined, true), field('summary', 'Summary', 'textarea', undefined, true), field('description', 'Description', 'textarea'), field('impact', 'Focus / impact', 'textarea'), field('feature_label'), field('cover_image_url', 'Cover image', 'image'), field('additional_images', 'Additional images', 'json'), field('objectives', 'Objectives (one per line)', 'json'), field('is_featured', 'Featured', 'boolean'), field('is_published', 'Published', 'boolean'), field('sort_order', 'Display order', 'number')] },
-  projects: { table: 'projects', title: 'Projects', description: 'Public project status and verified outcomes.', columns: ['title', 'status', 'location', 'is_published'], fields: [referenceField('program_id', 'Program', 'programs', ['name']), field('title', 'Title', 'text', undefined, true), field('description', 'Description', 'textarea'), field('status', 'Status', 'select', ['planned', 'active', 'completed', 'on_hold', 'cancelled']), field('location'), field('start_date', 'Start date', 'date'), field('end_date', 'End date', 'date'), field('completed_at', 'Completed date', 'date'), field('budget_amount', 'Budget amount', 'number'), field('currency_code', 'Currency'), field('cover_image_url', 'Cover image', 'image'), field('outcome_summary', 'Verified outcome', 'textarea'), field('is_published', 'Published', 'boolean')] },
-  galleries: { table: 'galleries', title: 'Gallery', description: 'Create a photo post with one or more original images.', columns: ['title', 'collection_name', 'is_published'], fields: [field('title', 'Post title'), field('additional_images', 'Post images', 'image-list', undefined, true), field('alt_text', 'Alternative text'), field('caption', 'Caption', 'textarea'), field('description', 'Description', 'textarea'), field('collection_name', 'Collection'), field('activity_date', 'Activity date', 'date'), field('is_published', 'Published', 'boolean'), field('sort_order', 'Display order', 'number')] },
-  events: { table: 'events', title: 'Events', description: 'Public event details, timing and registration links.', columns: ['title', 'event_date', 'status', 'is_published'], fields: [field('title', 'Title', 'text', undefined, true), field('summary', 'Description', 'textarea', undefined, true), field('event_date', 'Event date', 'date'), field('starts_at', 'Starts at', 'datetime'), field('ends_at', 'Ends at', 'datetime'), field('location'), field('image_url', 'Image', 'image'), field('cover_image_url', 'Cover image', 'image'), field('registration_url', 'Registration URL'), field('status', 'Status', 'select', ['draft', 'published', 'cancelled']), field('is_published', 'Published', 'boolean')] },
-  announcements: { table: 'announcements', title: 'Announcements', description: 'Public and internal organization updates.', columns: ['title', 'audience', 'status', 'published_at'], fields: [field('title', 'Title', 'text', undefined, true), field('body', 'Announcement', 'textarea', undefined, true), field('audience', 'Audience', 'select', ['public', 'staff']), field('published_at', 'Publish date', 'datetime'), field('expires_at', 'Expiry date', 'datetime'), field('cover_image_url', 'Cover image', 'image'), field('status', 'Status', 'select', ['draft', 'published', 'archived']), field('is_published', 'Published', 'boolean')] },
-  campaign_categories: { table: 'campaign_categories', title: 'Campaign categories', description: 'Giving areas used to organize campaigns.', columns: ['name', 'is_published'], fields: [field('name', 'Name', 'text', undefined, true), field('description', 'Description', 'textarea'), field('icon'), field('sort_order', 'Display order', 'number'), field('is_published', 'Published', 'boolean')] },
-  donation_campaigns: { table: 'donation_campaigns', title: 'Campaigns', description: 'Giving targets and verified offline campaign updates. No payment is processed here.', columns: ['title', 'status', 'target_amount', 'raised_amount'], fields: [referenceField('category_id', 'Category', 'campaign_categories', ['name']), field('slug'), field('title', 'Title', 'text', undefined, true), field('description', 'Description', 'textarea'), field('target_amount', 'Target amount', 'number'), field('raised_amount', 'Verified amount raised', 'number'), field('currency_code', 'Currency'), field('status', 'Status', 'select', ['draft', 'active', 'paused', 'completed', 'archived']), field('starts_at', 'Start date', 'date'), field('ends_at', 'End date', 'date'), field('cover_image_url', 'Cover image', 'image'), field('donation_instructions', 'Giving instructions', 'textarea'), field('suggested_amounts', 'Suggested amounts', 'json'), field('payment_methods', 'Payment methods (one per line)', 'json'), field('sort_order', 'Display order', 'number'), field('is_published', 'Published', 'boolean')] },
-  contact_details: { table: 'contact_details', title: 'Contact details', description: 'Official contact points displayed on the public website.', columns: ['label', 'category', 'value', 'is_public'], fields: [field('label', 'Label', 'text', undefined, true), field('value', 'Value', 'text', undefined, true), field('category', 'Category', 'text', undefined, true), field('is_public', 'Public', 'boolean'), field('sort_order', 'Display order', 'number')] },
-  social_links: { table: 'social_links', title: 'Social links', description: 'Verified organization social profiles.', columns: ['platform', 'url', 'is_active'], fields: [field('platform', 'Platform', 'text', undefined, true), field('url', 'URL', 'text', undefined, true), field('is_active', 'Active', 'boolean'), field('sort_order', 'Display order', 'number')] },
-  impact_metrics: { table: 'impact_metrics', title: 'Impact metrics', description: 'Reviewed impact figures only; do not enter estimates.', columns: ['label', 'value', 'is_published'], fields: [field('label', 'Label', 'text', undefined, true), field('value', 'Verified value', 'text', undefined, true), field('description', 'Description', 'textarea'), field('is_published', 'Published', 'boolean'), field('sort_order', 'Display order', 'number')] },
-  success_stories: { table: 'success_stories', title: 'Community stories', description: 'Stories must have informed consent and approval before publication.', columns: ['title', 'is_published', 'published_at'], fields: [referenceField('program_id', 'Program', 'programs', ['name']), field('title', 'Title', 'text', undefined, true), field('summary', 'Summary', 'textarea', undefined, true), field('story', 'Story', 'textarea'), field('image_url', 'Image', 'image'), field('is_published', 'Published', 'boolean'), field('published_at', 'Publish date', 'datetime')] },
-  newsletter_subscribers: { table: 'newsletter_subscribers', title: 'Newsletter subscribers', description: 'Subscriber email addresses and subscription status are private.', columns: ['email', 'is_confirmed', 'unsubscribed_at'], fields: [field('email', 'Email', 'text', undefined, true), field('name'), field('is_confirmed', 'Confirmed', 'boolean')], canCreate: false, archiveLabel: 'Unsubscribe address' },
+  website_sections: { table: 'website_sections', title: 'Website sections', description: 'Titles and structured content for public pages. Saving changes publishes them immediately.', columns: ['section_key', 'title'], fields: [field('section_key', 'Section key', 'text', undefined, true), field('title', 'Title', 'text', undefined, true), field('content', 'Page content', 'json')] },
+  team_years: { table: 'team_years', title: 'Team years', description: 'Annual team rosters. Saving publishes the roster immediately.', columns: ['year_label'], fields: [field('year_label', 'Year', 'text', undefined, true), field('sort_order', 'Display order', 'number')] },
+  team_members: { table: 'team_members', title: 'Team members', description: 'Staff and leadership biographies. Saving publishes the profile immediately.', columns: ['full_name', 'role_title'], fields: [referenceField('team_year_id', 'Team year', 'team_years', ['year_label'], true), field('full_name', 'Full name', 'text', undefined, true), field('role_title', 'Role title'), field('focus_area'), field('biography', 'Biography', 'textarea'), field('email'), field('avatar_url', 'Profile image', 'image'), field('sort_order', 'Display order', 'number')] },
+  programs: { table: 'programs', title: 'Programs', description: 'Public program information and summaries. Saving publishes the program immediately.', columns: ['name', 'slug'], fields: [field('slug', 'URL slug', 'text', undefined, true), field('name', 'Name', 'text', undefined, true), field('summary', 'Summary', 'textarea', undefined, true), field('description', 'Description', 'textarea'), field('impact', 'Focus / impact', 'textarea'), field('feature_label'), field('cover_image_url', 'Cover image', 'image'), field('additional_images', 'Additional images', 'json'), field('objectives', 'Objectives (one per line)', 'json'), field('is_featured', 'Featured', 'boolean'), field('sort_order', 'Display order', 'number')] },
+  partner_organizations: { table: 'partner_organizations', title: 'Partner organizations', description: 'Manage the organizations working alongside Heart of Sympathy. Saving publishes the partner immediately.', columns: ['name', 'focus_area', 'website_url'], fields: [field('name', 'Organization name', 'text', undefined, true), field('focus_area', 'Partnership focus'), field('description', 'About the partnership', 'textarea'), field('logo_url', 'Organization logo', 'image'), field('website_url', 'Website'), field('sort_order', 'Display order', 'number')] },
+  galleries: { table: 'galleries', title: 'Gallery', description: 'Create a photo post with one or more original images. Saving publishes it immediately.', columns: ['title', 'collection_name'], fields: [field('title', 'Post title'), field('additional_images', 'Post images', 'image-list', undefined, true), field('alt_text', 'Alternative text'), field('caption', 'Caption', 'textarea'), field('description', 'Description', 'textarea'), field('collection_name', 'Collection'), field('activity_date', 'Activity date', 'date'), field('sort_order', 'Display order', 'number')] },
+  events: { table: 'events', title: 'Events', description: 'Public event details, timing and registration links. Saving publishes the event immediately.', columns: ['title', 'event_date', 'location'], fields: [field('title', 'Title', 'text', undefined, true), field('summary', 'Description', 'textarea', undefined, true), field('event_date', 'Event date', 'date'), field('starts_at', 'Starts at', 'datetime'), field('ends_at', 'Ends at', 'datetime'), field('location'), field('image_url', 'Image', 'image'), field('cover_image_url', 'Cover image', 'image'), field('registration_url', 'Registration URL')] },
+  announcements: { table: 'announcements', title: 'Announcements', description: 'Public and internal organization updates. Saving publishes them immediately.', columns: ['title', 'audience', 'published_at'], fields: [field('title', 'Title', 'text', undefined, true), field('body', 'Announcement', 'textarea', undefined, true), field('audience', 'Audience', 'select', ['public', 'staff']), field('published_at', 'Publish date', 'datetime'), field('expires_at', 'Expiry date', 'datetime'), field('cover_image_url', 'Cover image', 'image')] },
+  campaign_categories: { table: 'campaign_categories', title: 'Giving area categories', description: 'Categories are entered directly on each giving area.', columns: ['name'], fields: [field('name', 'Name', 'text', undefined, true), field('description', 'Description', 'textarea'), field('icon'), field('sort_order', 'Display order', 'number')] },
+  donation_campaigns: { table: 'donation_campaigns', title: 'Giving areas', description: 'Add the category, description, image, wanted and available amounts, currency, dates, and display order. Saving publishes the giving area on the public Donate page immediately.', columns: ['category', 'target_amount', 'raised_amount'], fields: [field('category', 'Category', 'text', undefined, true), field('description', 'Description', 'textarea', undefined, true), field('cover_image_url', 'Image', 'image', undefined, true), field('target_amount', 'Amount wanted', 'number', undefined, true), field('raised_amount', 'Amount available so far', 'number', undefined, true), field('currency_code', 'Currency', 'text', undefined, true), field('starts_at', 'Start date', 'date'), field('ends_at', 'End date', 'date'), field('sort_order', 'Display order', 'number')] },
+  contact_details: { table: 'contact_details', title: 'Contact details', description: 'Official contact points displayed on the public website. Saving publishes them immediately.', columns: ['label', 'category', 'value'], fields: [field('label', 'Label', 'text', undefined, true), field('value', 'Value', 'text', undefined, true), field('category', 'Category', 'text', undefined, true), field('sort_order', 'Display order', 'number')] },
+  social_links: { table: 'social_links', title: 'Social links', description: 'Verified organization social profiles. Saving publishes them immediately.', columns: ['platform', 'url'], fields: [field('platform', 'Platform', 'text', undefined, true), field('url', 'URL', 'text', undefined, true), field('sort_order', 'Display order', 'number')] },
+  newsletter_subscribers: { table: 'newsletter_subscribers', title: 'Newsletter subscribers', description: 'Only people who signed up are listed. Unsubscribing removes their record from this list.', columns: ['email', 'consented_at'], fields: [], canCreate: false, archiveLabel: 'Delete subscriber' },
   volunteer_applications: { table: 'volunteer_applications', title: 'Volunteer applications', description: 'Review incoming volunteer interest and update its status.', columns: ['full_name', 'email', 'status', 'created_at'], fields: [field('status', 'Status', 'select', ['new', 'reviewing', 'accepted', 'declined'])], canCreate: false, canArchive: false },
   volunteers: { table: 'volunteers', title: 'Volunteer records', description: 'Volunteer contacts, skills and current status.', columns: ['full_name', 'email', 'status'], fields: [field('full_name', 'Full name', 'text', undefined, true), field('email', 'Email'), field('phone', 'Phone'), field('skills', 'Skills (one per line)', 'json'), field('status', 'Status', 'select', ['applicant', 'active', 'inactive']), field('joined_at', 'Joined date', 'date')] },
-  volunteer_assignments: { table: 'volunteer_assignments', title: 'Volunteer assignments', description: 'Event and project assignments for volunteers.', columns: ['volunteer_id', 'role_title', 'starts_at', 'status'], fields: [referenceField('volunteer_id', 'Volunteer', 'volunteers', ['full_name', 'email'], true), referenceField('project_id', 'Project', 'projects', ['title']), referenceField('event_id', 'Event', 'events', ['title']), field('role_title', 'Assignment role'), field('starts_at', 'Starts at', 'datetime'), field('ends_at', 'Ends at', 'datetime'), field('hours', 'Hours', 'number'), field('status', 'Status', 'select', ['planned', 'confirmed', 'completed', 'cancelled'])] },
+  volunteer_assignments: { table: 'volunteer_assignments', title: 'Volunteer assignments', description: 'Event assignments and scheduled volunteer hours.', columns: ['volunteer_id', 'role_title', 'starts_at', 'status'], fields: [referenceField('volunteer_id', 'Volunteer', 'volunteers', ['full_name', 'email'], true), referenceField('event_id', 'Event', 'events', ['title']), field('role_title', 'Assignment role'), field('starts_at', 'Starts at', 'datetime'), field('ends_at', 'Ends at', 'datetime'), field('hours', 'Hours', 'number'), field('status', 'Status', 'select', ['planned', 'confirmed', 'completed', 'cancelled'])] },
   donations: { table: 'donations', title: 'Donation records', description: 'Record verified donations; never treat a browser submission as a payment.', columns: ['amount', 'currency_code', 'status', 'received_at'], fields: [referenceField('campaign_id', 'Campaign', 'donation_campaigns', ['title']), referenceField('donor_id', 'Donor', 'donors', ['full_name', 'organization_name']), field('amount', 'Amount', 'number', undefined, true), field('currency_code', 'Currency'), field('status', 'Status', 'select', ['pending', 'completed', 'failed', 'refunded', 'cancelled']), field('payment_provider', 'Provider'), field('provider_reference', 'Provider reference'), field('received_at', 'Received at', 'datetime'), field('notes', 'Notes', 'textarea')], canArchive: false },
   donors: { table: 'donors', title: 'Donors', description: 'Private donor contact records.', columns: ['full_name', 'organization_name', 'is_anonymous'], fields: [field('full_name', 'Name'), field('email', 'Email'), field('phone', 'Phone'), field('organization_name', 'Organization'), field('is_anonymous', 'Anonymous', 'boolean')], canArchive: false },
-  contact_messages: { table: 'contact_messages', title: 'Contact inbox', description: 'Messages received from the public contact form.', columns: ['full_name', 'email', 'subject', 'status'], fields: [field('status', 'Status', 'select', ['new', 'in_progress', 'resolved', 'archived'])], canCreate: false, canArchive: false },
-  secretariat_documents: { table: 'secretariat_documents', title: 'Documents & minutes', description: 'Create minutes, memos and internal reports; export as Word or print/save to PDF.', columns: ['title', 'document_type', 'meeting_date', 'status'], fields: [field('title', 'Title', 'text', undefined, true), field('document_type', 'Document type', 'select', ['note', 'meeting_minutes', 'memo', 'report']), field('meeting_date', 'Meeting date', 'date'), field('status', 'Status', 'select', ['draft', 'final']), field('body', 'Document notes', 'json')] },
+  donation_methods: { table: 'donation_methods', title: 'Donation methods', description: 'Add official bank, mobile-money, or other giving instructions. Saving makes them available to visitors immediately.', columns: ['label', 'method_type', 'details'], fields: [field('label', 'Method name', 'text', undefined, true), field('method_type', 'Method type', 'select', ['mobile_money', 'bank_transfer', 'other'], true), field('details', 'Account or contact details', 'textarea', undefined, true), field('instructions', 'Instructions', 'textarea'), field('sort_order', 'Display order', 'number')] },
+  contact_messages: { table: 'contact_messages', title: 'Contact inbox', description: 'Messages received from the public contact form.', columns: ['full_name', 'email', 'subject', 'status'], fields: [field('status', 'Status', 'select', ['new', 'in_progress', 'resolved', 'archived'])], canCreate: false, archiveLabel: 'Delete message' },
+  secretariat_documents: { table: 'secretariat_documents', title: 'Documents & minutes', description: 'Create minutes, memos and internal reports, or upload completed records for secure storage.', columns: ['title', 'document_type', 'meeting_date', 'status'], fields: [field('title', 'Title', 'text', undefined, true), field('document_type', 'Document type', 'select', ['note', 'meeting_minutes', 'memo', 'report']), field('meeting_date', 'Meeting date', 'date'), field('status', 'Status', 'select', ['draft', 'final']), field('body', 'Notes and attached files', 'document')] },
   department_updates: { table: 'department_updates', title: 'Department updates', description: 'Submit a period update for management review.', columns: ['department', 'period_start', 'period_end', 'status'], fields: [field('department', 'Department', 'text', undefined, true), field('period_start', 'Period start', 'date', undefined, true), field('period_end', 'Period end', 'date', undefined, true), field('summary', 'Summary', 'textarea', undefined, true), field('progress', 'Progress notes (one per line)', 'json'), field('status', 'Status', 'select', ['draft', 'submitted', 'reviewed'])] },
   families: { table: 'families', title: 'Family records', description: 'Confidential family data. Access follows organization roles and database RLS.', columns: ['household_code', 'primary_contact_name', 'district', 'status'], fields: [field('household_code', 'Household code'), field('primary_contact_name', 'Primary contact', 'text', undefined, true), field('phone', 'Phone'), field('email', 'Email'), field('address', 'Address', 'textarea'), field('district', 'District'), field('sector', 'Sector'), field('household_size', 'Household size', 'number'), field('vulnerability_notes', 'Restricted notes', 'textarea'), field('status', 'Status', 'select', ['active', 'inactive', 'closed'])] },
   children: { table: 'children', title: 'Child records', description: 'Restricted and sensitive child information. Follow safeguarding policies.', columns: ['child_code', 'first_name', 'school_name', 'enrollment_status'], fields: [referenceField('family_id', 'Family', 'families', ['primary_contact_name', 'household_code'], true), field('child_code', 'Child code'), field('first_name', 'First name', 'text', undefined, true), field('last_name', 'Last name'), field('date_of_birth', 'Date of birth', 'date'), field('gender', 'Gender', 'select', ['female', 'male', 'other', 'undisclosed']), field('school_name', 'School'), field('grade_level', 'Grade'), field('enrollment_status', 'Enrollment', 'select', ['enrolled', 'not_enrolled', 'graduated', 'unknown']), field('safeguarding_notes', 'Safeguarding notes', 'textarea'), field('status', 'Status', 'select', ['active', 'inactive', 'closed'])] },
-  case_records: { table: 'case_records', title: 'Case records', description: 'Restricted case-management records. Keep factual notes and minimum necessary details.', columns: ['title', 'priority', 'status', 'opened_at'], fields: [referenceField('family_id', 'Family', 'families', ['primary_contact_name', 'household_code'], true), referenceField('child_id', 'Child', 'children', ['first_name', 'last_name', 'child_code']), referenceField('program_id', 'Program', 'programs', ['name']), referenceField('project_id', 'Project', 'projects', ['title']), field('title', 'Case title', 'text', undefined, true), field('description', 'Description', 'textarea'), field('priority', 'Priority', 'select', ['low', 'normal', 'high', 'urgent']), field('status', 'Status', 'select', ['open', 'in_progress', 'on_hold', 'resolved', 'closed']), field('closed_at', 'Closed at', 'datetime')] },
+  student_support_updates: { table: 'student_support_updates', title: 'Support milestones', description: 'Recorded support events in student journeys.', columns: ['child_id', 'occurred_on', 'category', 'title'], fields: [], readOnly: true },
+  case_records: { table: 'case_records', title: 'Case records', description: 'Restricted case-management records. Keep factual notes and minimum necessary details.', columns: ['title', 'priority', 'status', 'opened_at'], fields: [referenceField('family_id', 'Family', 'families', ['primary_contact_name', 'household_code'], true), referenceField('child_id', 'Child', 'children', ['first_name', 'last_name', 'child_code']), referenceField('program_id', 'Program', 'programs', ['name']), field('title', 'Case title', 'text', undefined, true), field('description', 'Description', 'textarea'), field('priority', 'Priority', 'select', ['low', 'normal', 'high', 'urgent']), field('status', 'Status', 'select', ['open', 'in_progress', 'on_hold', 'resolved', 'closed']), field('closed_at', 'Closed at', 'datetime')] },
   case_notes: { table: 'case_notes', title: 'Case notes', description: 'Internal notes; restricted notes are role-limited by RLS.', columns: ['case_id', 'visibility', 'created_at'], fields: [referenceField('case_id', 'Case', 'case_records', ['title'], true), field('note', 'Note', 'textarea', undefined, true), field('visibility', 'Visibility', 'select', ['internal', 'restricted'])], archiveLabel: 'Delete note' },
-  assistance_records: { table: 'assistance_records', title: 'Assistance records', description: 'Record assistance actually provided; amounts are not donations.', columns: ['assistance_type', 'quantity', 'amount', 'provided_at'], fields: [referenceField('family_id', 'Family', 'families', ['primary_contact_name', 'household_code'], true), referenceField('child_id', 'Child', 'children', ['first_name', 'last_name', 'child_code']), referenceField('case_id', 'Case', 'case_records', ['title']), referenceField('program_id', 'Program', 'programs', ['name']), referenceField('project_id', 'Project', 'projects', ['title']), field('assistance_type', 'Assistance type', 'text', undefined, true), field('description', 'Description', 'textarea'), field('quantity', 'Quantity', 'number'), field('amount', 'Amount', 'number'), field('currency_code', 'Currency')], canArchive: false },
+  assistance_records: { table: 'assistance_records', title: 'Assistance records', description: 'Record assistance actually provided; amounts are not donations.', columns: ['assistance_type', 'quantity', 'amount', 'provided_at'], fields: [referenceField('family_id', 'Family', 'families', ['primary_contact_name', 'household_code'], true), referenceField('child_id', 'Child', 'children', ['first_name', 'last_name', 'child_code']), referenceField('case_id', 'Case', 'case_records', ['title']), referenceField('program_id', 'Program', 'programs', ['name']), field('assistance_type', 'Assistance type', 'text', undefined, true), field('description', 'Description', 'textarea'), field('quantity', 'Quantity', 'number'), field('amount', 'Amount', 'number'), field('currency_code', 'Currency')], canArchive: false },
   audit_events: { table: 'audit_events', title: 'Audit history', description: 'Append-only record of database changes. Sensitive row values are not included.', columns: ['table_name', 'record_id', 'action', 'occurred_at'], fields: [], readOnly: true },
   email_notification_jobs: { table: 'email_notification_jobs', title: 'Notification delivery queue', description: 'Provider delivery state. Email sending requires a server-side provider configuration.', columns: ['notification_type', 'status', 'recipient_count', 'created_at'], fields: [], readOnly: true },
   website_page_views: { table: 'website_page_views', title: 'Website page views', description: 'Anonymous page-view records for basic traffic reporting.', columns: ['page_path', 'referrer_host', 'country_code', 'created_at'], fields: [], readOnly: true },
   grant_opportunities: { table: 'grant_opportunities', title: 'Grant opportunities', description: 'Track verified funding opportunities and application progress.', columns: ['title', 'funder_name', 'status', 'deadline'], fields: [field('title', 'Opportunity title', 'text', undefined, true), field('funder_name', 'Funder', 'text', undefined, true), field('status', 'Status', 'select', ['researching', 'planned', 'in_progress', 'submitted', 'awarded', 'declined', 'archived']), field('focus_area', 'Focus area'), field('amount', 'Potential amount', 'number'), field('currency_code', 'Currency'), field('deadline', 'Deadline', 'date'), field('application_url', 'Application URL'), field('notes', 'Notes', 'textarea')], archiveLabel: 'Archive opportunity' },
-  staff_accounts: { table: 'staff_accounts', title: 'Staff accounts', description: 'Review the organization portal accounts and assigned team members.', columns: ['portal', 'account_email', 'role', 'team_members', 'password'], fields: [], readOnly: true, canCreate: false, canArchive: false },
+  finance_transactions: { table: 'finance_transactions', title: 'Finance records', description: 'Track income, spending, team contributions and supporting document references.', columns: ['transaction_date', 'transaction_type', 'category', 'description', 'amount', 'currency_code', 'status'], fields: [field('transaction_type', 'Record type', 'select', ['income', 'expense', 'team_contribution']), field('category', 'Category', 'text', undefined, true), field('description', 'Description', 'text', undefined, true), field('amount', 'Amount', 'number', undefined, true), field('currency_code', 'Currency', 'text', undefined, true), field('transaction_date', 'Transaction date', 'date', undefined, true), field('payment_method', 'Payment method'), field('reference_number', 'Reference number'), field('document_url', 'External document link'), field('document_path', 'Private supporting file', 'private-file'), field('notes', 'Notes', 'textarea'), field('status', 'Status', 'select', ['draft', 'confirmed', 'cancelled'])] },
+  staff_accounts: { table: 'staff_accounts', title: 'Staff accounts', description: 'Review staff sign-in accounts and securely update work email or password.', columns: ['portal', 'account_email', 'role', 'team_members'], fields: [], readOnly: true, canCreate: false, canArchive: false },
 };
 
 const staffAccountDirectory = [
@@ -107,16 +114,15 @@ const staffAccountDirectory = [
   { portal: 'Volunteer Management', account_email: 'volunteers@hos.org', role: 'volunteer_manager', team_members: 'Ines Iradukunda; Bonheur DUFITIMANA; Amahirwe Joyeuse' },
   { portal: 'Finance', account_email: 'finance@hos.org', role: 'finance', team_members: 'FORGIVENESS Peace Love' },
   { portal: 'Programs / Child Support', account_email: 'programs@hos.org', role: 'program_manager', team_members: 'Tesor RWOGERE; Babra Singana; Uwunkunda Pacifique; Isaro Michaella' },
-  { portal: 'Case Worker', account_email: 'caseworker@hos.org', role: 'case_worker', team_members: 'Tesor RWOGERE; Babra Singana; Uwunkunda Pacifique; Isaro Michaella' },
   { portal: 'Fundraising / Grants', account_email: 'fundraising@hos.org', role: 'fundraiser', team_members: 'Benoit Ntwali Ngabo Teto; Habimana Kaela Naomi; Isingizwe Anita; Queen Merveille; Niyonsuti Don Joel' },
 ];
 
 const portalConfig: Record<PortalKind, { icon: typeof LayoutDashboard; tables: AdminTable[]; heading: string; intro: string }> = {
-  content: { icon: BookOpen, tables: ['staff_accounts', 'audit_events', 'organizations', 'website_sections', 'team_years', 'team_members', 'programs', 'projects', 'events', 'announcements', 'galleries', 'impact_metrics', 'success_stories', 'contact_details', 'social_links', 'contact_messages', 'newsletter_subscribers'], heading: 'Administration', intro: 'Admins review staff access and audit history. Communications staff manage approved public content and website enquiries.' },
-  secretariat: { icon: FileText, tables: ['secretariat_documents', 'department_updates', 'volunteer_applications', 'volunteers', 'volunteer_assignments'], heading: 'Secretariat', intro: 'Manage official records or assigned volunteer coordination, based on your role.' },
-  programs: { icon: HeartHandshake, tables: ['programs', 'projects', 'department_updates', 'families', 'children', 'case_records', 'case_notes', 'assistance_records'], heading: 'Programs / Child Support', intro: 'Program managers coordinate delivery; case workers access only the family and case records needed for their work.' },
-  finance: { icon: CircleDollarSign, tables: ['donations'], heading: 'Finance', intro: 'Maintain verified donation records. Donor relationship management belongs to Fundraising.' },
-  fundraising: { icon: HeartHandshake, tables: ['campaign_categories', 'donation_campaigns', 'donors', 'grant_opportunities'], heading: 'Fundraising / Grants', intro: 'Manage fundraising campaigns, donor relationships and grant opportunities. This workspace does not process payments.' },
+  content: { icon: BookOpen, tables: ['organizations', 'website_sections', 'team_years', 'team_members', 'programs', 'partner_organizations', 'events', 'announcements', 'galleries', 'contact_details', 'social_links', 'contact_messages', 'newsletter_subscribers'], heading: 'Administration', intro: 'Communications staff manage public website content, while administrators review organization-wide progress.' },
+  secretariat: { icon: FileText, tables: ['secretariat_documents', 'volunteer_applications', 'volunteers', 'partner_organizations', 'newsletter_subscribers', 'contact_messages', 'contact_details', 'social_links'], heading: 'Secretariat', intro: 'Manage volunteer coordination and shared organization contacts assigned to your role.' },
+  programs: { icon: HeartHandshake, tables: ['programs'], heading: 'Programs / Child Support', intro: 'Manage child support profiles, milestones, and the programs serving children and families.' },
+  finance: { icon: CircleDollarSign, tables: ['donations', 'donors', 'finance_transactions', 'donation_methods', 'grant_opportunities'], heading: 'Finance', intro: 'Manage donor records, giving methods, verified donations, team contributions, income, and expenses.' },
+  fundraising: { icon: HeartHandshake, tables: ['donation_campaigns', 'donors', 'donation_methods', 'grant_opportunities'], heading: 'Fundraising / Grants', intro: 'Manage giving areas and grant opportunities, and view finance-managed donor and payment-method records.' },
 };
 
 const labels: Record<PortalKind, string> = {
@@ -148,6 +154,60 @@ function localDateTimeValue(date = new Date()) {
   const hours = String(date.getHours()).padStart(2, '0');
   const minutes = String(date.getMinutes()).padStart(2, '0');
   return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+function friendlyDatabaseError(error: unknown, fields: Field[]) {
+  const message = error instanceof Error ? error.message : 'Could not save this record.';
+  const nullColumn = message.match(/null value in column "([^"]+)"/i);
+  if (nullColumn) {
+    const column = nullColumn[1];
+    const label = fields.find((item) => item.key === column)?.label ?? column.replaceAll('_', ' ');
+    return `Please fill in ${label}.`;
+  }
+  if (/duplicate key|unique constraint/i.test(message)) return 'A record with the same identifying information already exists.';
+  if (/foreign key constraint/i.test(message)) return 'Choose an existing related record before saving.';
+  if (/invalid input syntax/i.test(message)) return 'Check the values in the form and try again.';
+  return message;
+}
+
+function documentAttachments(row: DataRow): DocumentAttachment[] {
+  const body = row.body;
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) return [];
+  const attachments = (body as Record<string, unknown>).attachments;
+  if (!Array.isArray(attachments)) return [];
+  return attachments.filter((item): item is DocumentAttachment =>
+    typeof item === 'object' && item !== null &&
+    typeof (item as DocumentAttachment).path === 'string' &&
+    typeof (item as DocumentAttachment).name === 'string' &&
+    typeof (item as DocumentAttachment).size === 'number' &&
+    typeof (item as DocumentAttachment).type === 'string',
+  );
+}
+
+async function downloadPrivateDocument(attachment: DocumentAttachment, reportError: (message: string | null) => void) {
+  await downloadStorageFile('secretariat-documents', attachment.path, attachment.name, reportError);
+}
+
+async function downloadStorageFile(bucket: string, path: string, name: string, reportError: (message: string | null) => void) {
+  reportError(null);
+  try {
+    const { data, error } = await getSupabaseClient()
+      .storage.from(bucket)
+      .createSignedUrl(path, 60, { download: name });
+    if (error) {
+      reportError(`Unable to open ${name}: ${error.message}`);
+      return;
+    }
+    const link = document.createElement('a');
+    link.href = data.signedUrl;
+    link.download = name;
+    link.rel = 'noopener noreferrer';
+    document.body.append(link);
+    link.click();
+    link.remove();
+  } catch (error) {
+    reportError(error instanceof Error ? `Unable to open ${name}: ${error.message}` : `Unable to open ${name}.`);
+  }
 }
 
 function generatedRecordCode(prefix: string) {
@@ -228,9 +288,13 @@ export function WorkspacePage() {
     : available[0];
   const [selection, setSelection] = useState<{ portal: PortalKind; table: AdminTable } | null>(null);
   const selectedTable = portal && selection?.portal === portal ? selection.table : null;
-  const [activeView, setActiveView] = useState<'overview' | 'team' | 'admin'>('overview');
+  const [activeView, setActiveView] = useState<'overview' | 'team' | 'records' | 'students' | 'accounts' | 'progress'>('overview');
   const [signOutError, setSignOutError] = useState<string | null>(null);
-  const visibleTables = portal ? pageTablesForRole(portal, roles) : [];
+  const canManagePartners = canAccessRole(roles, ['communications', 'volunteer_manager']);
+  const canManageGallery = canAccessRole(roles, ['communications']);
+  const visibleTables = portal
+    ? pageTablesForRole(portal, roles).filter((table) => table !== 'partner_organizations' && table !== 'galleries' && table !== 'donation_methods' && table !== 'secretariat_documents')
+    : [];
   const isAdmin = canAccessRole(roles, ['admin']);
   const setSelectedTable = (table: AdminTable | null) => {
     if (portal) {
@@ -240,6 +304,7 @@ export function WorkspacePage() {
 
   if (!portal) return <Navigate to={`/workspace/${available[0]}`} replace />;
   const page = portalConfig[portal];
+  const canAccessStudents = canAccessRole(roles, ['program_manager', 'case_worker', 'child_protection', 'education_support', 'health_nutrition']);
 
   const handleSignOut = async () => {
     setSignOutError(null);
@@ -260,8 +325,14 @@ export function WorkspacePage() {
         <div className="portal-kicker">Sections</div>
         <nav className="portal-nav" aria-label="Workspace sections">
           <button className={`portal-nav-link${selectedTable === null && activeView === 'overview' ? ' active' : ''}`} type="button" onClick={() => { setSelectedTable(null); setActiveView('overview'); }}><LayoutDashboard /><span>Overview</span></button>
-          <button className={`portal-nav-link${selectedTable === null && activeView === 'team' ? ' active' : ''}`} type="button" onClick={() => { setSelection(null); setActiveView('team'); }}><Users /><span>Team</span></button>
-          {portal === 'content' && isAdmin && <button className={`portal-nav-link${selectedTable === null && activeView === 'admin' ? ' active' : ''}`} type="button" onClick={() => { setSelection(null); setActiveView('admin'); }}><Shield /><span>Admin dashboard</span></button>}
+          <button className={`portal-nav-link${selectedTable === null && activeView === 'team' ? ' active' : ''}`} type="button" onClick={() => { setSelection(null); setActiveView('team'); }}><Users /><span>Team &amp; guide</span></button>
+          {portal === 'programs' && canAccessStudents && <button className={`portal-nav-link${selectedTable === null && activeView === 'students' ? ' active' : ''}`} type="button" onClick={() => { setSelection(null); setActiveView('students'); }}><HeartHandshake /><span>Our children</span></button>}
+          {canManageGallery && <button className={`portal-nav-link${selectedTable === 'galleries' ? ' active' : ''}`} type="button" onClick={() => { setActiveView('overview'); setSelectedTable('galleries'); }}><ImageUp /><span>Gallery</span></button>}
+          {canManagePartners && <button className={`portal-nav-link${selectedTable === 'partner_organizations' ? ' active' : ''}`} type="button" onClick={() => { setActiveView('overview'); setSelectedTable('partner_organizations'); }}><HeartHandshake /><span>Partners</span></button>}
+          {['finance', 'fundraising'].includes(portal) && canAccessRole(roles, ['finance', 'fundraiser']) && <button className={`portal-nav-link${selectedTable === 'donation_methods' ? ' active' : ''}`} type="button" onClick={() => { setActiveView('overview'); setSelectedTable('donation_methods'); }}><CircleDollarSign /><span>Donation methods</span></button>}
+          {portal === 'secretariat' && canAccessRole(roles, ['secretariat']) && <button className={`portal-nav-link${selectedTable === null && activeView === 'records' ? ' active' : ''}`} type="button" onClick={() => { setSelection(null); setActiveView('records'); }}><FileText /><span>All records</span></button>}
+          {portal === 'content' && isAdmin && <button className={`portal-nav-link${selectedTable === null && activeView === 'accounts' ? ' active' : ''}`} type="button" onClick={() => { setSelection(null); setActiveView('accounts'); }}><Users /><span>Staff accounts</span></button>}
+          {portal === 'content' && isAdmin && <button className={`portal-nav-link${selectedTable === null && activeView === 'progress' ? ' active' : ''}`} type="button" onClick={() => { setSelection(null); setActiveView('progress'); }}><Activity /><span>Track progress</span></button>}
         </nav>
         <div className="portal-sidebar-bottom">
           <div className="user-chip"><div className="user-avatar">{(user?.email?.[0] ?? 'U').toUpperCase()}</div><div className="user-identity"><div className="user-name">{typeof user?.user_metadata.full_name === 'string' ? user.user_metadata.full_name : 'Signed in'}</div><div className="user-role">{roles.join(', ')}</div><div className="user-email">{user?.email}</div></div></div>
@@ -274,7 +345,7 @@ export function WorkspacePage() {
         <div className="portal-topbar">
           <div>
             {selectedTable && <button type="button" className="workspace-back-link" onClick={() => setSelectedTable(null)}><ArrowLeft size={14} /> All sections</button>}
-            <div className="eyebrow">{labels[portal]}</div><h1>{selectedTable ? configs[selectedTable].title : activeView === 'team' ? 'Team' : activeView === 'admin' ? 'Admin dashboard' : page.heading}</h1><p>{selectedTable ? configs[selectedTable].description : activeView === 'team' ? 'People assigned to this portal and working together.' : activeView === 'admin' ? 'Review staff access and audit history.' : page.intro}</p>
+            <div className="eyebrow">{labels[portal]}</div><h1>{selectedTable ? configs[selectedTable].title : activeView === 'team' ? 'Team & guide' : activeView === 'accounts' ? 'Staff accounts' : activeView === 'progress' ? 'Track progress' : activeView === 'records' ? 'All records' : activeView === 'students' ? 'Our children' : page.heading}</h1><p>{selectedTable === 'donors' && portal === 'fundraising' ? 'View donor records managed by Finance. You cannot edit or delete donor records here.' : selectedTable === 'grant_opportunities' && portal === 'finance' ? 'View grant opportunities managed by Fundraising. You cannot edit or delete grant records here.' : selectedTable === 'donation_methods' && portal === 'fundraising' ? 'View official giving instructions managed by Finance. You cannot edit or delete these methods here.' : selectedTable ? configs[selectedTable].description : activeView === 'team' ? 'Meet your portal team, then use the quick guide below to complete common tasks.' : activeView === 'accounts' ? 'Manage one account for each team portal.' : activeView === 'progress' ? 'Review live metrics and activity history across the organization.' : activeView === 'records' ? 'Browse completed Secretariat documents.' : activeView === 'students' ? 'Manage child profiles, family context, and support milestones in one place.' : page.intro}</p>
           </div>
           {!selectedTable && <div className="portal-actions"><span className="pill"><Shield size={13} /> Role-protected</span></div>}
         </div>
@@ -282,11 +353,17 @@ export function WorkspacePage() {
           ? selectedTable === 'staff_accounts'
             ? <StaffAccountsWorkspace />
             : <RecordWorkspace key={selectedTable} config={getTableConfig(portal, selectedTable, roles)} />
-          : activeView === 'team'
-            ? <PortalTeam team={getPortalTeam(portal, roles)} />
-            : activeView === 'admin'
-              ? <PortalSummary portal={portal} tables={visibleTables} onSelect={setSelectedTable} />
-            : <PortalOverview portal={portal} tables={visibleTables} onSelect={setSelectedTable} />}
+          : activeView === 'students'
+            ? <StudentSupportWorkspace roles={roles} />
+            : activeView === 'accounts'
+              ? <StaffAccountsWorkspace />
+            : activeView === 'progress'
+              ? <AdminProgressWorkspace />
+            : activeView === 'team'
+              ? <><PortalTeam team={getPortalTeam(portal, roles)} /><PortalGuide portal={portal} roles={roles} /></>
+            : activeView === 'records'
+              ? <SecretariatRecordsWorkspace />
+              : <PortalOverview portal={portal} tables={visibleTables} onSelect={setSelectedTable} />}
       </main>
     </div>
   );
@@ -306,6 +383,53 @@ function PortalTeam({ team }: { team: ReturnType<typeof getPortalTeam> }) {
   );
 }
 
+function PortalGuide({ portal, roles }: { portal: PortalKind; roles: string[] }) {
+  const isAdmin = roles.includes('admin');
+  const sections: Array<{ title: string; details: string; items: string[] }> = portal === 'content'
+    ? isAdmin
+      ? [
+          { title: 'Run the workspace', details: 'Use the sidebar to choose a task; the overview summarizes the sections available to your role.', items: ['Open Overview to see your accessible records.', 'Use Staff accounts to change an existing team login.', 'Use Track progress to review live totals and selected audit history.'] },
+          { title: 'Manage public information', details: 'Communications maintains public site content. Admin can review organization-wide progress and account access.', items: ['Keep events, gallery items, partners, and website copy current.', 'Review contact messages and newsletter subscriptions in their shared sections.', 'Saving public content publishes it immediately, so check details before saving.'] },
+        ]
+      : [
+          { title: 'Update the public website', details: 'New and edited public content appears as soon as it saves, so check it before saving.', items: ['Use Gallery, Partners, Events, and Announcements for public updates.', 'Use Programs and Team for the organization information visitors see.', 'Use Contact messages and Newsletter subscribers to follow up with people.'] },
+          { title: 'Keep content consistent', details: 'Changes are shared with other authorized workspaces and refresh on the public site.', items: ['Preview image cards before saving.', 'Check dates, links, descriptions, and image captions.', 'Use Overview to return to the section list.'] },
+        ]
+    : portal === 'secretariat'
+      ? roles.includes('volunteer_manager')
+        ? [
+            { title: 'Coordinate volunteers', details: 'Keep applications and volunteer records up to date from their shared sections.', items: ['Review new volunteer applications and follow up with applicants.', 'Maintain the volunteer roster and shared partner records.', 'Use Contact inbox, subscriber list, contact details, and social links for shared communications.'] },
+            { title: 'Work with shared records', details: 'Updates made here are visible to other authorized teams.', items: ['Check existing entries before adding a new one.', 'Use search and preview cards to find records quickly.', 'Confirm a change saved before moving to another section.'] },
+          ]
+        : [
+            { title: 'Maintain official records', details: 'Use All records to file documents already completed by the organization.', items: ['Add a clear title, document type, and completion date.', 'Attach the completed document or provide its stored reference.', 'Search the list before adding a duplicate.'] },
+            { title: 'Find shared information', details: 'Other sections are shared with teams that have permission to maintain them.', items: ['Use Overview to open records available to your account.', 'Review existing entries before creating another.', 'Use the sidebar to return to All records.'] },
+          ]
+      : portal === 'programs'
+        ? [
+            { title: 'Keep each student’s work together', details: 'The student record combines private staff details, a profile draft, a photo, and the support timeline.', items: ['Add or edit a student from Our children; public-profile fields are in the same form.', 'Record follow-up with Log support; health and internal notes stay private.', 'Only publish appropriate, non-sensitive profile details. Never publish a full date of birth or private case information.'] },
+            { title: 'Manage programs', details: 'Use the Programs section for the services delivered to students and families.', items: ['Keep program descriptions and status current.', 'Use the student timeline for individual follow-up.', 'Use Overview to see your available sections.'] },
+          ]
+        : portal === 'finance'
+          ? [
+              { title: 'Record financial activity', details: 'Keep donations, spending, and team contributions distinguishable and traceable.', items: ['Record verified donations and donors in their sections.', 'Use Finance records for income, expenses, and team contributions.', 'Attach supporting documents where available.'] },
+              { title: 'Set the ways to give', details: 'Finance owns the official bank, mobile-money, and other payment instructions.', items: ['Add or update each method once in Donation methods.', 'Saving a method makes it available to visitors immediately.', 'Fundraising areas automatically show these methods when a visitor selects Donate.'] },
+            ]
+          : [
+              { title: 'Create a giving area', details: 'Add a category, area name, description, photo, wanted and available amounts, currency, dates, and display order.', items: ['Save the form once; the giving area appears on the public Donate page automatically.', 'No separate category record, publishing switch, or payment-method setup is needed.', 'Visitors select Donate on the area to see the methods maintained by Finance.'] },
+              { title: 'Manage grants and shared records', details: 'Fundraising owns giving areas and grant opportunities; Finance owns payment methods and donor records.', items: ['Keep grant deadlines and application links current.', 'Review donor and donation-method records maintained by Finance; these are view-only here.', 'Check the public Donate page after saving a giving area.'] },
+            ];
+
+  return <section className="portal-guide" aria-labelledby="portal-guide-title">
+    <div className="portal-guide-heading"><div><span className="eyebrow">Quick guide</span><h2 id="portal-guide-title">How to use this workspace</h2><p>Short steps for the tasks your team handles most.</p></div><BookOpen size={22} aria-hidden="true" /></div>
+    {portal === 'finance' && <div className="portal-guide-callout"><strong>Finance adds the official payment methods.</strong><span>Fundraising’s Donate cards use the methods you save here automatically.</span></div>}
+    {portal === 'fundraising' && <div className="portal-guide-callout"><strong>Save a giving area once; it appears on Donate.</strong><span>When a visitor selects Donate, the payment methods Finance maintains are shown automatically.</span></div>}
+    <div className="portal-guide-grid">{sections.map((section, index) => <article className="portal-guide-card" key={section.title}>
+      <div className="portal-guide-index">{String(index + 1).padStart(2, '0')}</div><h3>{section.title}</h3><p>{section.details}</p><ul>{section.items.map((item) => <li key={item}>{item}</li>)}</ul>
+    </article>)}</div>
+  </section>;
+}
+
 function pageTablesForRole(portal: PortalKind, roles: string[]) {
   const allowedRoles: Partial<Record<AdminTable, OrganizationRole[]>> = {
     staff_accounts: ['admin'],
@@ -315,16 +439,15 @@ function pageTablesForRole(portal: PortalKind, roles: string[]) {
     team_years: ['communications'],
     team_members: ['communications'],
     programs: ['communications', 'program_manager'],
-    projects: ['program_manager'],
+    partner_organizations: ['communications', 'volunteer_manager'],
     events: ['communications'],
     announcements: ['communications'],
     galleries: ['communications'],
-    impact_metrics: ['communications'],
-    success_stories: ['communications'],
-    contact_details: ['communications'],
-    social_links: ['communications'],
-    contact_messages: ['communications'],
-    newsletter_subscribers: ['communications'],
+    contact_details: ['communications', 'volunteer_manager'],
+    social_links: ['communications', 'volunteer_manager'],
+    contact_messages: ['communications', 'volunteer_manager'],
+    newsletter_subscribers: ['communications', 'volunteer_manager'],
+    finance_transactions: ['finance'],
     secretariat_documents: ['secretariat'],
     department_updates: ['secretariat', 'program_manager'],
     volunteer_applications: ['volunteer_manager', 'hr'],
@@ -336,10 +459,10 @@ function pageTablesForRole(portal: PortalKind, roles: string[]) {
     case_notes: ['case_worker', 'child_protection', 'education_support', 'health_nutrition'],
     assistance_records: ['case_worker', 'child_protection', 'education_support', 'health_nutrition'],
     donations: ['finance'],
-    donors: ['fundraiser'],
-    campaign_categories: ['fundraiser'],
+    donors: ['finance', 'fundraiser'],
     donation_campaigns: ['fundraiser'],
-    grant_opportunities: ['fundraiser'],
+    grant_opportunities: ['fundraiser', 'finance'],
+    donation_methods: ['finance', 'fundraiser'],
   };
   return portalConfig[portal].tables.filter((table) => {
     const requiredRoles = allowedRoles[table];
@@ -353,24 +476,24 @@ function getTableConfig(portal: PortalKind, table: AdminTable, roles: string[]):
     website_sections: ['communications'],
     team_years: ['communications'],
     team_members: ['communications'],
-    programs: ['communications'],
-    projects: ['program_manager'],
+    programs: ['communications', 'program_manager'],
+    partner_organizations: ['communications', 'volunteer_manager'],
     events: ['communications'],
     announcements: ['communications'],
-    campaign_categories: ['fundraiser'],
     donation_campaigns: ['fundraiser'],
     galleries: ['communications'],
-    contact_details: ['communications'],
-    social_links: ['communications'],
-    impact_metrics: ['communications'],
-    success_stories: ['communications'],
-    newsletter_subscribers: ['communications'],
+    contact_details: ['communications', 'volunteer_manager'],
+    social_links: ['communications', 'volunteer_manager'],
+    newsletter_subscribers: ['communications', 'volunteer_manager'],
     volunteer_applications: ['volunteer_manager', 'hr'],
     volunteers: ['volunteer_manager', 'hr'],
     volunteer_assignments: ['volunteer_manager'],
     donations: ['finance'],
-    donors: ['fundraiser'],
-    contact_messages: ['communications'],
+    donors: ['finance'],
+    grant_opportunities: ['fundraiser'],
+    donation_methods: ['finance'],
+    contact_messages: ['communications', 'volunteer_manager'],
+    finance_transactions: ['finance'],
     secretariat_documents: ['secretariat'],
     department_updates: ['program_manager', 'secretariat'],
     families: ['case_worker', 'child_protection', 'education_support', 'health_nutrition'],
@@ -391,15 +514,15 @@ type AnalyticsPoint = { date: string; label: string; value: number };
 type AnalyticsSlice = { label: string; value: number; color: string };
 
 const communicationTables = [
-  'organizations', 'website_sections', 'team_years', 'team_members', 'programs', 'events',
-  'announcements', 'galleries', 'impact_metrics', 'success_stories',
+  'organizations', 'website_sections', 'team_years', 'team_members', 'programs', 'partner_organizations', 'events',
+  'announcements', 'galleries',
   'contact_details', 'social_links',
 ];
 const activityGroups: Array<{ label: string; color: string; tables: string[] }> = [
   { label: 'Communications', color: '#ffe353', tables: communicationTables },
-  { label: 'Programs & child support', color: '#70c4a8', tables: ['projects', 'families', 'children', 'case_records', 'case_notes', 'assistance_records', 'department_updates'] },
-  { label: 'Finance', color: '#91c9ce', tables: ['donations'] },
-  { label: 'Fundraising', color: '#d99bff', tables: ['donors', 'campaign_categories', 'donation_campaigns', 'grant_opportunities'] },
+  { label: 'Programs & child support', color: '#70c4a8', tables: ['families', 'children', 'case_records', 'case_notes', 'assistance_records', 'department_updates'] },
+  { label: 'Finance', color: '#91c9ce', tables: ['donations', 'finance_transactions'] },
+  { label: 'Fundraising', color: '#d99bff', tables: ['donors', 'donation_campaigns', 'grant_opportunities'] },
   { label: 'Secretariat & volunteers', color: '#ff9d73', tables: ['secretariat_documents', 'volunteers', 'volunteer_assignments', 'volunteer_applications'] },
 ];
 const analyticsAnchorTime = Date.now();
@@ -540,7 +663,7 @@ function AnalyticsBarChart({ title, description, items, loading }: { title: stri
   return (
     <div className="analytics-card">
       <div className="analytics-card-heading"><div><h3>{title}</h3><p>{description}</p></div><span className="analytics-card-icon"><Activity size={16} /></span></div>
-      {loading ? <div className="analytics-chart-loading"><span className="loading-dot" /> Loading chart…</div> : items.length ? <div className="analytics-bars">{items.map((item) => <div className="analytics-bar-row" key={item.label}><span title={item.label}>{item.label}</span><div><i style={{ width: `${Math.max(4, item.value / max * 100)}%` }} /></div><strong>{item.value}</strong></div>)}</div> : <p className="analytics-empty">No communications changes were audited in this period.</p>}
+      {loading ? <div className="analytics-chart-loading"><span className="loading-dot" /> Loading chart…</div> : items.length ? <div className="analytics-bars">{items.map((item) => <div className="analytics-bar-row" key={item.label}><span>{item.label}</span><div><i style={{ width: `${Math.max(4, item.value / max * 100)}%` }} /></div><strong>{item.value}</strong></div>)}</div> : <p className="analytics-empty">No communications changes were audited in this period.</p>}
     </div>
   );
 }
@@ -590,7 +713,14 @@ function PortalSummary({ portal, tables, onSelect }: { portal: PortalKind; table
   useEffect(() => {
     let active = true;
     void Promise.all(tables.map(async (table): Promise<{ table: AdminTable; count: string | null; error: string | null }> => {
-      if (table === 'staff_accounts') return { table, count: String(staffAccountDirectory.length), error: null };
+      if (table === 'staff_accounts') {
+        try {
+          const accounts = await listStaffAccounts();
+          return { table, count: accounts.length === 250 ? '250+' : String(accounts.length), error: null };
+        } catch (error) {
+          return { table, count: null, error: error instanceof Error ? error.message : 'Staff account service is unavailable.' };
+        }
+      }
       try {
         const rows = await listAdminRows(table);
         return { table, count: rows.length === 250 ? '250+' : String(rows.length), error: null };
@@ -621,26 +751,251 @@ function PortalSummary({ portal, tables, onSelect }: { portal: PortalKind; table
   );
 }
 
-function StaffAccountsWorkspace() {
-  return (
-    <section className="panel record-panel">
-      <div className="table-wrap">
-        <table className="data-table">
-          <thead><tr><th>Portal</th><th>Account email</th><th>Role</th><th>Team members</th></tr></thead>
-          <tbody>
-            {staffAccountDirectory.map((account) => (
-              <tr key={account.account_email}>
-                <td data-label="Portal">{account.portal}</td>
-                <td data-label="Account email">{account.account_email}</td>
-                <td data-label="Role">{account.role}</td>
-                <td data-label="Team members">{account.team_members}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+const progressGroups: Array<{ key: string; label: string; tables: AdminTable[] }> = [
+  { key: 'communications', label: 'Communications', tables: ['organizations', 'website_sections', 'team_members', 'programs', 'partner_organizations', 'events', 'announcements', 'galleries', 'contact_messages', 'newsletter_subscribers'] },
+  { key: 'secretariat', label: 'Secretariat', tables: ['secretariat_documents', 'volunteer_applications', 'volunteers', 'contact_details', 'social_links'] },
+  { key: 'volunteer_management', label: 'Volunteer Management', tables: ['volunteers', 'volunteer_applications', 'partner_organizations'] },
+  { key: 'finance', label: 'Finance', tables: ['donations', 'donors', 'finance_transactions', 'donation_methods'] },
+  { key: 'programs', label: 'Programs / Child Support', tables: ['families', 'children', 'student_support_updates', 'assistance_records', 'programs'] },
+  { key: 'fundraising', label: 'Fundraising / Grants', tables: ['donation_campaigns', 'grant_opportunities'] },
+];
+
+function AdminProgressWorkspace() {
+  const client = getSupabaseClient();
+  const [selectedGroup, setSelectedGroup] = useState(progressGroups[0].key);
+  const [metrics, setMetrics] = useState<Array<{ portal_key: string; table_name: string; record_count: number }>>([]);
+  const [history, setHistory] = useState<DataRow[]>([]);
+  const [selectedEvents, setSelectedEvents] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const activeGroup = progressGroups.find((group) => group.key === selectedGroup) ?? progressGroups[0];
+  const refresh = useCallback(async () => {
+    setError(null);
+    try {
+      const [metricsResult, events] = await Promise.all([
+        client.rpc('get_admin_portal_metrics'),
+        listAdminRows('audit_events'),
+      ]);
+      if (metricsResult.error) throw new Error(`Portal metrics could not be loaded: ${metricsResult.error.message}`);
+      setMetrics(metricsResult.data ?? []);
+      setHistory(events);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : 'Portal progress could not be loaded.');
+    } finally {
+      setLoading(false);
+    }
+  }, [client]);
+
+  useEffect(() => {
+    void Promise.resolve().then(refresh);
+    let active = true;
+    const channel = client.channel('admin-portal-progress')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'audit_events' }, () => { void refresh(); });
+    channel.subscribe((status) => {
+      if (!active) return;
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        setError(`Live progress updates are unavailable (${status}). Use Refresh to check current data.`);
+      }
+    });
+    const fallback = window.setInterval(() => { void refresh(); }, 30_000);
+    return () => {
+      active = false;
+      window.clearInterval(fallback);
+      void client.removeChannel(channel);
+    };
+  }, [client, refresh]);
+
+  const tableNames = new Set<string>(activeGroup.tables);
+  const visibleHistory = history.filter((row) => typeof row.table_name === 'string' && tableNames.has(row.table_name));
+  const selectVisible = (checked: boolean) => setSelectedEvents((current) => {
+    const visibleIds = visibleHistory.map((row) => String(row.id)).filter(Boolean);
+    return checked ? [...new Set([...current, ...visibleIds])] : current.filter((id) => !visibleIds.includes(id));
+  });
+  const deleteSelected = async () => {
+    if (!selectedEvents.length) return;
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const { data, error: deleteError } = await client.rpc('delete_audit_events_by_ids', { p_event_ids: selectedEvents });
+      if (deleteError) throw new Error(deleteError.message);
+      setMessage(`${data} selected ${data === 1 ? 'entry was' : 'entries were'} deleted.`);
+      setSelectedEvents([]);
+      setConfirmDeleteOpen(false);
+      await refresh();
+    } catch (deleteError) {
+      setConfirmDeleteOpen(false);
+      setError(deleteError instanceof Error ? deleteError.message : 'Selected audit history could not be deleted.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return <section className="admin-progress-workspace">
+    <div className="filter-row" role="tablist" aria-label="Select team progress">
+      {progressGroups.map((group) => <button key={group.key} type="button" role="tab" aria-selected={selectedGroup === group.key} className={`button button-small ${selectedGroup === group.key ? 'button-primary' : 'button-outline'}`} onClick={() => { setSelectedGroup(group.key); setSelectedEvents([]); setMessage(null); }}>{group.label}</button>)}
+    </div>
+    {error && <div role="alert" className="form-message error">{error}</div>}
+    {message && <div role="status" className="form-message success">{message}</div>}
+    <section className="panel">
+      <div className="panel-heading"><div><h2>{activeGroup.label} progress</h2><p>Live totals for the current records in this workspace.</p></div><button type="button" className="button button-outline button-small" onClick={() => void refresh()} disabled={loading}><RefreshCw size={14} className={loading ? 'spin' : ''} /> Refresh</button></div>
+      {loading ? <div className="loading-inline"><LoaderCircle className="spin" size={16} /> Loading progress…</div> : <div className="portal-overview">{activeGroup.tables.map((table) => {
+        const metric = metrics.find((item) => item.portal_key === activeGroup.key && item.table_name === table);
+        return <article className="metric-card" key={table}><div className="metric-number">{metric?.record_count.toLocaleString() ?? '0'}</div><div className="metric-label">{configs[table].title}</div></article>;
+      })}</div>}
     </section>
+    <section className="panel">
+      <div className="panel-heading"><div><h2>{activeGroup.label} history</h2><p>Select one or more entries to permanently delete.</p></div><button type="button" className="button button-danger button-small" disabled={busy || selectedEvents.length === 0} onClick={() => setConfirmDeleteOpen(true)}>{`Delete selected (${selectedEvents.length})`} <Trash2 size={14} /></button></div>
+      {visibleHistory.length > 0 ? <div className="table-wrap"><table className="data-table"><thead><tr><th><input type="checkbox" aria-label="Select all visible history" checked={visibleHistory.length > 0 && visibleHistory.every((row) => selectedEvents.includes(String(row.id)))} onChange={(event) => selectVisible(event.target.checked)} /></th><th>Date</th><th>Area</th><th>Action</th><th>Record ID</th></tr></thead><tbody>{visibleHistory.map((row) => {
+        const id = String(row.id);
+        return <tr key={id}><td data-label="Select"><input type="checkbox" aria-label={`Select ${readable(row.table_name)} audit entry`} checked={selectedEvents.includes(id)} onChange={(event) => setSelectedEvents((current) => event.target.checked ? [...new Set([...current, id])] : current.filter((value) => value !== id))} /></td><td data-label="Date">{typeof row.occurred_at === 'string' ? new Date(row.occurred_at).toLocaleString() : '—'}</td><td data-label="Area">{readable(row.table_name)}</td><td data-label="Action">{readable(row.action)}</td><td data-label="Record ID">{readable(row.record_id)}</td></tr>;
+      })}</tbody></table></div> : <div className="empty-state">No recent history is recorded for this team.</div>}
+    </section>
+    {confirmDeleteOpen && <ConfirmActionDialog
+      title="Delete selected audit history?"
+      message={`This permanently deletes ${selectedEvents.length} selected ${selectedEvents.length === 1 ? 'entry' : 'entries'}. This action cannot be undone.`}
+      confirmLabel={busy ? 'Deleting…' : 'Delete history'}
+      busy={busy}
+      onCancel={() => setConfirmDeleteOpen(false)}
+      onConfirm={() => void deleteSelected()}
+    />}
+  </section>;
+}
+
+function ConfirmActionDialog({ title, message, confirmLabel, busy, onCancel, onConfirm }: {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  busy: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return <div className="modal-backdrop confirm-action-backdrop" role="presentation" onMouseDown={(event) => {
+    if (event.target === event.currentTarget && !busy) onCancel();
+  }}>
+    <section className="modal confirm-action-dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-action-title" aria-describedby="confirm-action-message">
+      <div className="modal-header"><h2 id="confirm-action-title">{title}</h2><button className="icon-button" type="button" disabled={busy} onClick={onCancel} aria-label="Close confirmation"><X size={16} /></button></div>
+      <div className="modal-body"><p id="confirm-action-message">{message}</p><div className="record-form-actions"><button type="button" className="button button-outline" disabled={busy} onClick={onCancel}>Cancel</button><button type="button" className="button button-danger" disabled={busy} onClick={onConfirm}>{confirmLabel}</button></div></div>
+    </section>
+  </div>;
+}
+
+function StaffAccountsWorkspace() {
+  const [accounts, setAccounts] = useState<StaffAccount[]>([]);
+  const [selectedAccount, setSelectedAccount] = useState<StaffAccount | null>(null);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const loadedAccounts = await listStaffAccounts();
+      setAccounts([...new Map(loadedAccounts.map((account) => [account.user_id, account])).values()]);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : 'Unable to load staff accounts.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void Promise.resolve().then(refresh); }, [refresh]);
+
+  const editAccount = (account: StaffAccount) => {
+    setSelectedAccount(account);
+    setEmail(account.email);
+    setPassword('');
+    setError(null);
+    setMessage(null);
+  };
+
+  const saveAccount = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!selectedAccount || (!email.trim() && !password)) {
+      setError('Enter an updated work email or a new password.');
+      return;
+    }
+    if (password && password.length < 12) {
+      setError('Use a password with at least 12 characters.');
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const updated = await updateStaffAccount(selectedAccount.user_id, email === selectedAccount.email ? '' : email, password);
+      setPassword('');
+      setSelectedAccount(null);
+      setMessage(updated.auditWarning ?? 'Staff account updated. The new password is not displayed or stored by this page.');
+      await refresh();
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Unable to update this staff account.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const rolePortals: Record<string, string> = {
+    admin: 'Administration',
+    communications: 'Communications',
+    secretariat: 'Secretariat',
+    volunteer_manager: 'Volunteer Management',
+    finance: 'Finance',
+    program_manager: 'Programs / Child Support',
+    fundraiser: 'Fundraising / Grants',
+  };
+  const visibleAccounts = accounts.filter((account) => !account.email.trim().toLocaleLowerCase().endsWith('@hos.example.com'));
+
+  return (
+    <>
+      <section className="panel record-panel">
+        <div className="panel-heading"><div><h2>Staff sign-in accounts</h2><p>One row per portal; accounts with the same portal role are grouped to avoid repeating the same section.</p></div><button type="button" className="button button-outline button-small" onClick={() => void refresh()} disabled={loading}><RefreshCw size={14} className={loading ? 'spin' : ''} /> Refresh</button></div>
+        {error && !selectedAccount && <div role="alert" className="form-message error">{error}</div>}
+        {message && <div role="status" className="form-message success">{message}</div>}
+        {loading ? <div className="loading-inline"><LoaderCircle className="spin" size={16} /> Loading staff accounts…</div> : accounts.length === 0 ? <div className="empty-state">No staff accounts were returned. Confirm the Edge Function is deployed and staff roles are assigned.</div> : (
+          <div className="table-wrap"><table className="data-table"><thead><tr><th>Portal</th><th>Account email</th><th>Role</th><th>Team members</th><th>Access</th></tr></thead><tbody>
+            {staffAccountDirectory.map((portalAccount) => {
+              const roleAccounts = visibleAccounts.filter((account) =>
+                portalAccount.role === 'program_manager'
+                  ? account.roles.includes('program_manager') || account.roles.includes('case_worker')
+                  : account.roles.includes(portalAccount.role)
+              );
+              const portalAccountUser = roleAccounts.find((account) => account.email.trim().toLocaleLowerCase() === portalAccount.account_email.toLocaleLowerCase())
+                ?? roleAccounts[0];
+              return <tr key={portalAccount.role}>
+                <td data-label="Portal">{rolePortals[portalAccount.role] ?? portalAccount.portal}</td>
+                <td data-label="Account email">{portalAccountUser?.email ?? 'No matching authorized account'}</td>
+                <td data-label="Role">{portalAccount.role.replaceAll('_', ' ')}</td>
+                <td data-label="Team members">{portalAccount.team_members}</td>
+                <td data-label="Access"><div className="row-actions">{portalAccountUser ? <button className="button button-outline button-small" type="button" onClick={() => editAccount(portalAccountUser)}><Pencil size={13} /> Manage</button> : <span className="field-hint">Check the authorized email in Supabase</span>}</div></td>
+              </tr>;
+            })}
+          </tbody></table></div>
+        )}
+      </section>
+      {selectedAccount && <div className="modal-backdrop staff-account-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) setSelectedAccount(null); }}>
+        <section className="modal staff-account-editor" role="dialog" aria-modal="true" aria-labelledby="staff-account-heading" aria-describedby="staff-account-description">
+        <div className="panel-heading staff-account-editor-heading"><div><h2 id="staff-account-heading">Manage staff account</h2><p id="staff-account-description"><strong>{selectedAccount.email}</strong><br />Leave the password empty to keep it unchanged. Passwords are never revealed.</p></div><button type="button" className="icon-button" onClick={() => setSelectedAccount(null)} disabled={saving} aria-label="Close account editor"><X size={16} /></button></div>
+        <form className="form-grid" onSubmit={(event) => void saveAccount(event)}>
+          <label className="field"><span className="field-label">Work email</span><input className="input" type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} /></label>
+          <label className="field"><span className="field-label">New password</span><input className="input" type="password" autoComplete="new-password" minLength={12} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="At least 12 characters" /></label>
+          <div className="record-form-actions field-span"><button className="button button-outline" type="button" disabled={saving} onClick={() => setSelectedAccount(null)}>Cancel</button><button className="button button-primary" type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save account changes'} <Check size={14} /></button></div>
+        </form>
+        {error && <div role="alert" className="form-message error">{error}</div>}
+        </section>
+      </div>}
+    </>
   );
+}
+
+function SecretariatRecordsWorkspace() {
+  return <RecordWorkspace config={getTableConfig('secretariat', 'secretariat_documents', ['secretariat'])} />;
 }
 
 function RecordWorkspace({ config }: { config: TableConfig }) {
@@ -649,11 +1004,13 @@ function RecordWorkspace({ config }: { config: TableConfig }) {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [editing, setEditing] = useState<DataRow | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [page, setPage] = useState(0);
   const [copyMessage, setCopyMessage] = useState<string | null>(null);
   const [copyingEmails, setCopyingEmails] = useState(false);
+  const searchRef = useRef(search);
   const { user } = useAuth();
   const pageSize = 12;
   const canEdit = !config.readOnly;
@@ -677,6 +1034,27 @@ function RecordWorkspace({ config }: { config: TableConfig }) {
       .catch((loadError: unknown) => setError(loadError instanceof Error ? loadError.message : `Unable to load ${config.title.toLowerCase()}.`))
       .finally(() => setLoading(false));
   }, [config.table, config.title]);
+  useEffect(() => {
+    searchRef.current = search;
+  }, [search]);
+  useEffect(() => {
+    if (config.table !== 'newsletter_subscribers') return;
+    const abortController = new AbortController();
+    const client = getSupabaseClient();
+    const channel = client.channel('newsletter-subscriber-list')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'newsletter_subscribers' }, () => {
+        if (!abortController.signal.aborted) void refresh(searchRef.current);
+      })
+      .subscribe((status) => {
+        if (!abortController.signal.aborted && (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT')) {
+          setError(`Live subscriber updates are unavailable (${status}). Refresh the list to check current subscriptions.`);
+        }
+      });
+    return () => {
+      abortController.abort();
+      void client.removeChannel(channel);
+    };
+  }, [config.table, refresh]);
   const visibleRows = useMemo(() => rows.slice(page * pageSize, (page + 1) * pageSize), [page, rows]);
 
   const startNew = () => {
@@ -686,13 +1064,18 @@ function RecordWorkspace({ config }: { config: TableConfig }) {
       else if (item.kind === 'json') initial[item.key] = ['content', 'body', 'progress'].includes(item.key) ? {} : [];
       else if (item.kind === 'date') initial[item.key] = item.key === 'date_of_birth' ? '' : localDateValue();
       else if (item.kind === 'datetime') initial[item.key] = localDateTimeValue();
+      else if (item.key === 'currency_code') initial[item.key] = 'RWF';
       else if (item.kind === 'select' && item.options?.length) initial[item.key] = item.options[0];
       else initial[item.key] = '';
     }
+    if (config.table === 'secretariat_documents') initial.status = 'final';
     if (config.table === 'families') initial.household_code = generatedRecordCode('FAM');
     if (config.table === 'children') initial.child_code = generatedRecordCode('CH');
+    if (config.table === 'donation_campaigns') initial.raised_amount = 0;
     setEditing(initial);
     setIsNew(true);
+    setFieldErrors({});
+    setError(null);
   };
 
   const save = async (event: FormEvent<HTMLFormElement>) => {
@@ -700,16 +1083,68 @@ function RecordWorkspace({ config }: { config: TableConfig }) {
     if (!editing) return;
     setBusy(true);
     setError(null);
+    setFieldErrors({});
     try {
+      if (event.currentTarget.querySelector('[data-uploading="true"]')) {
+        setError('Wait for the file upload to finish before saving this record.');
+        return;
+      }
       const formData = new FormData(event.currentTarget);
+    const missingFields: Record<string, string> = {};
+    for (const item of config.fields) {
+      if (!item.required) continue;
+      const raw = String(formData.get(item.key) ?? '').trim();
+      const missingImage = item.kind === 'image-list' && (() => {
+        try {
+          const parsed: unknown = JSON.parse(raw);
+          return !Array.isArray(parsed) || parsed.length === 0;
+        } catch {
+          return true;
+        }
+      })();
+      if (!raw || missingImage) {
+        missingFields[item.key] = item.kind === 'image-list' ? `Add at least one image for ${item.label.toLowerCase()}.` : `${item.label} must be filled in.`;
+      }
+    }
+      if (config.fields.some((item) => item.key === 'email') && String(formData.get('email') ?? '').trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(formData.get('email')))) {
+        missingFields.email = 'Enter a valid email address.';
+      }
+      if (config.table === 'finance_transactions' && Number(formData.get('amount')) <= 0) {
+        missingFields.amount = 'Enter an amount greater than zero.';
+      }
+      if (config.table === 'donation_campaigns') {
+        const wanted = Number(formData.get('target_amount'));
+        const available = Number(formData.get('raised_amount'));
+        if (!Number.isFinite(wanted) || wanted <= 0) missingFields.target_amount = 'Enter an amount wanted greater than zero.';
+        if (!Number.isFinite(available) || available < 0) missingFields.raised_amount = 'Enter an amount available of zero or more.';
+        const startDate = String(formData.get('starts_at') ?? '');
+        const endDate = String(formData.get('ends_at') ?? '');
+        if (startDate && endDate && endDate < startDate) missingFields.ends_at = 'The end date must be on or after the start date.';
+      }
+      if (Object.keys(missingFields).length) {
+        setFieldErrors(missingFields);
+        return;
+      }
       const values: DataRow = {};
       for (const item of config.fields) {
         const raw = formData.get(item.key);
-        if (item.required && String(raw ?? '').trim() === '') {
-          throw new Error(`${item.label} is required.`);
-        }
         if (item.kind === 'boolean') values[item.key] = raw === 'on';
-        else if (item.kind === 'number') values[item.key] = String(raw ?? '').trim() === '' ? null : Number(raw);
+        else if (item.kind === 'number') values[item.key] = String(raw ?? '').trim() === '' ? item.key === 'sort_order' ? 0 : null : Number(raw);
+        else if (item.kind === 'document') {
+          let documentBody: unknown;
+          try {
+            documentBody = JSON.parse(String(raw ?? '{}')) as unknown;
+          } catch {
+            throw new Error('Review the document notes and attachments, then try saving again.');
+          }
+          if (typeof documentBody !== 'object' || documentBody === null || Array.isArray(documentBody)) {
+            throw new Error('The document notes or attachments are not in a valid format.');
+          }
+          values[item.key] = documentBody;
+        }
+        else if (item.kind === 'private-file') {
+          values[item.key] = String(raw ?? '').trim() || null;
+        }
         else if (item.kind === 'image-list') {
           let assets: Array<{ url: string; caption: string }>;
           try {
@@ -723,6 +1158,10 @@ function RecordWorkspace({ config }: { config: TableConfig }) {
           } catch (parseError) {
             throw new Error(parseError instanceof Error ? parseError.message : `${item.label} must contain valid images.`);
           }
+          if (config.table === 'finance_transactions') {
+            const documentName = String(formData.get('document_name') ?? '').trim();
+            values.document_name = documentName || null;
+          }
           if (!assets.length || assets.some((asset) => !asset.url.trim())) throw new Error('Add at least one image to this post.');
           values[item.key] = assets;
           if (config.table === 'galleries') values.image_url = assets[0].url;
@@ -734,6 +1173,32 @@ function RecordWorkspace({ config }: { config: TableConfig }) {
           values[item.key] = text || null;
         }
       }
+      const publishOnSave: Partial<Record<AdminTable, DataRow>> = {
+        website_sections: { is_published: true },
+        team_years: { active: true, is_published: true },
+        team_members: { status: 'active', is_published: true },
+        programs: { is_published: true },
+        partner_organizations: { is_published: true },
+        galleries: { is_published: true },
+        events: { status: 'published', is_published: true },
+        announcements: { status: 'published', is_published: true },
+        contact_details: { is_public: true },
+        social_links: { is_active: true },
+        donation_methods: { is_active: true, is_public: true },
+        donation_campaigns: { status: 'active', is_published: true },
+      };
+      Object.assign(values, publishOnSave[config.table]);
+      if (config.table === 'team_members') {
+        const avatarPosition = String(formData.get('avatar_object_position') ?? '').trim();
+        if (avatarPosition) values.avatar_object_position = avatarPosition;
+      }
+      if (config.table === 'donation_campaigns') {
+        const title = String(values.category ?? '').trim();
+        values.title = title;
+        const existingSlug = typeof editing.slug === 'string' ? editing.slug : '';
+        const generatedSlug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'giving-area';
+        values.slug = existingSlug || `${generatedSlug}-${crypto.randomUUID().slice(0, 8)}`;
+      }
       if (isNew && config.table === 'department_updates' && user?.id) values.submitted_by = user.id;
       if (config.table === 'secretariat_documents' && user?.id) {
         values[isNew ? 'created_by' : 'updated_by'] = user.id;
@@ -742,12 +1207,13 @@ function RecordWorkspace({ config }: { config: TableConfig }) {
       if (isNew && config.table === 'case_notes' && user?.id) values.created_by = user.id;
       if (isNew && config.table === 'assistance_records' && user?.id) values.provided_by = user.id;
       if (isNew && config.table === 'donations' && user?.id) values.recorded_by = user.id;
+      if (isNew && config.table === 'finance_transactions' && user?.id) values.recorded_by = user.id;
       const recordId = typeof editing.id === 'string' ? editing.id : undefined;
       await saveAdminRow(config.table, values, recordId);
       setEditing(null);
       await refresh(search);
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Could not save this record.');
+      setError(friendlyDatabaseError(saveError, config.fields));
     } finally {
       setBusy(false);
     }
@@ -766,6 +1232,7 @@ function RecordWorkspace({ config }: { config: TableConfig }) {
       setConfirmingId(null);
       await refresh(search);
     } catch (archiveError) {
+      setConfirmingId(null);
       setError(archiveError instanceof Error ? archiveError.message : 'Could not archive this record.');
     } finally {
       setBusy(false);
@@ -789,8 +1256,9 @@ function RecordWorkspace({ config }: { config: TableConfig }) {
   const exportDocument = async (row: DataRow) => {
     try {
       const { Document, Packer, Paragraph, TextRun } = await import('docx');
+      const body = row.body && typeof row.body === 'object' ? row.body as Record<string, unknown> : {};
       const text = config.table === 'secretariat_documents'
-        ? Object.entries(row.body && typeof row.body === 'object' ? row.body as Record<string, unknown> : {}).map(([key, value]) => `${key.replaceAll('_', ' ')}: ${readable(value)}`).join('\n\n')
+        ? [typeof body.text === 'string' ? body.text : '', ...documentAttachments(row).map((attachment) => `Attached file: ${attachment.name}`)].filter(Boolean).join('\n\n')
         : JSON.stringify(row, null, 2);
       const document = new Document({ sections: [{ children: [
         new Paragraph({ children: [new TextRun({ text: String(row.title ?? config.title), bold: true, size: 32 })] }),
@@ -810,7 +1278,7 @@ function RecordWorkspace({ config }: { config: TableConfig }) {
       return;
     }
     const docBody = row.body && typeof row.body === 'object' ? row.body as Record<string, unknown> : {};
-    const content = Object.entries(docBody).map(([key, value]) => `${key.replaceAll('_', ' ')}: ${readable(value)}`).join('\n\n');
+    const content = [typeof docBody.text === 'string' ? docBody.text : '', ...documentAttachments(row).map((attachment) => `Attached file: ${attachment.name}`)].filter(Boolean).join('\n\n');
     const heading = printWindow.document.createElement('h1');
     heading.textContent = String(row.title ?? config.title);
     const subtitle = printWindow.document.createElement('p');
@@ -878,38 +1346,58 @@ function RecordWorkspace({ config }: { config: TableConfig }) {
   };
 
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const confirmingRow = rows.find((row) => row.id === confirmingId) ?? null;
   return (
     <section className="panel record-panel">
       <div className="toolbar">
         <form className="toolbar-left" onSubmit={(event) => void filterRows(event)}><div className="search-field"><Search size={15} /><input className="input" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search these records" aria-label="Search records" /></div><button type="submit" className="button button-outline button-small">Search</button></form>
-        <div className="toolbar-right">{config.table === 'newsletter_subscribers' && <button type="button" className="button button-outline button-small" onClick={() => void copySubscriberEmails()} disabled={loading || copyingEmails}><ClipboardCopy size={14} /> {copyingEmails ? 'Copying…' : 'Copy active emails'}</button>}<button type="button" className="button button-outline button-small" onClick={() => void exportExcel()} disabled={loading || rows.length === 0}><ArrowDownToLine size={14} /> CSV / Excel</button>{canEdit && !config.readOnly && config.canCreate !== false && <button type="button" className="button button-primary button-small" onClick={startNew}><Plus size={14} /> Add record</button>}</div>
+        <div className="toolbar-right">{config.table === 'newsletter_subscribers' && <button type="button" className="button button-outline button-small" onClick={() => void copySubscriberEmails()} disabled={loading || copyingEmails}><ClipboardCopy size={14} /> {copyingEmails ? 'Copying…' : 'Copy subscriber emails'}</button>}<button type="button" className="button button-outline button-small" onClick={() => void exportExcel()} disabled={loading || rows.length === 0}><ArrowDownToLine size={14} /> CSV / Excel</button>{canEdit && !config.readOnly && config.canCreate !== false && <button type="button" className="button button-primary button-small" onClick={startNew}><Plus size={14} /> Add record</button>}</div>
       </div>
       {copyMessage && <div role={copyMessage.startsWith('Could not') || copyMessage.startsWith('Clipboard') ? 'alert' : 'status'} className={`form-message subscriber-copy-message${copyMessage.startsWith('Could not') || copyMessage.startsWith('Clipboard') ? ' error' : ''}`}>{copyMessage}</div>}
       {rows.length === 250 && <p className="field-hint">The table loads at most 250 records at a time. Use search to find other records or narrow an export.</p>}
       {error && <div role="alert" className="form-message error">{error}</div>}
-      {loading ? <div className="loading-inline"><LoaderCircle className="spin" size={16} /> Loading records…</div> : rows.length === 0 ? <div className="empty-state">No records are available in this area. Add the first record or adjust your search.</div> : (
+      {loading ? <div className="loading-inline"><LoaderCircle className="spin" size={16} /> Loading records…</div> : rows.length === 0 ? <div className="empty-state">{config.table === 'newsletter_subscribers' ? 'No subscribed email addresses are currently on the list.' : 'No records are available in this area. Add the first record or adjust your search.'}</div> : ['galleries', 'partner_organizations', 'programs', 'events', 'announcements', 'donation_campaigns', 'team_members'].includes(config.table) ? (
+        <div className="record-preview-grid">
+          {visibleRows.map((row, index) => {
+            const rowId = String(row.id ?? index);
+            const title = String(row.full_name ?? row.title ?? row.name ?? 'Untitled record');
+            const previewImages = recordPreviewImages(row);
+            const subtitle = config.table === 'team_members'
+              ? [row.role_title, row.email].filter((value): value is string => typeof value === 'string' && value.trim().length > 0).join(' · ')
+              : String(row.collection_name ?? row.focus_area ?? row.status ?? 'HOS record');
+            return <article className="record-preview-card" key={rowId}>
+              {previewImages.length ? <div className={`record-preview-images${config.table === 'team_members' ? ' record-preview-member-image' : ''}`}>{previewImages.slice(0, 4).map((src, imageIndex) => <img src={src} key={`${src}-${imageIndex}`} alt={config.table === 'team_members' ? `${title} profile` : ''} loading="lazy" />)}</div> : <div className={`record-preview-placeholder${config.table === 'team_members' ? ' record-preview-member-image' : ''}`}>{config.table === 'team_members' ? <Users size={24} /> : <ImageUp size={24} />}</div>}
+              <div className="record-preview-content"><div className="card-kicker">{subtitle}</div><h3>{title}</h3><p>{String(row.biography ?? row.caption ?? row.description ?? row.summary ?? '') || 'No biography has been added.'}</p>
+                <div className="record-preview-actions">
+                  {canEdit && <button className="button button-outline button-small" type="button" onClick={() => { setEditing(row); setIsNew(false); setFieldErrors({}); setError(null); }}><Pencil size={13} /> Edit</button>}
+                  {canEdit && config.canArchive !== false && <button className="button button-danger button-small" type="button" onClick={() => setConfirmingId(confirmingId === rowId ? null : rowId)} disabled={busy}><Trash2 size={13} /> Delete</button>}
+                </div>
+              </div>
+            </article>;
+          })}
+        </div>
+      ) : (
         <div className="table-wrap">
           <table className="data-table"><thead><tr>{config.columns.map((column) => <th key={column}>{column.replaceAll('_', ' ')}</th>)}{!config.readOnly && <th>Actions</th>}</tr></thead><tbody>
             {visibleRows.map((row, index) => {
               const rowId = String(row.id ?? index);
               const removeLabel = config.archiveLabel ?? 'Archive record';
+              const financeDocumentPath = typeof row.document_path === 'string' ? row.document_path : null;
+              const financeDocumentName = typeof row.document_name === 'string' ? row.document_name : null;
               return (
                 <tr key={rowId}>
-                  {config.columns.map((column) => <td className="truncate" key={column} data-label={column.replaceAll('_', ' ')} title={readable(row[column])}>{readable(row[column])}</td>)}
+                  {config.columns.map((column) => <td className="truncate" key={column} data-label={column.replaceAll('_', ' ')}>{readable(row[column])}</td>)}
                   {!config.readOnly && <td data-label="Actions">
                     <div className="row-actions">
                       {config.table === 'secretariat_documents' && <>
                         <button className="icon-button" type="button" onClick={() => void exportDocument(row)} aria-label="Download Word document" title="Download Word document"><ArrowDownToLine size={14} /></button>
                         <button className="icon-button" type="button" onClick={() => printDocument(row)} aria-label="Print or save as PDF" title="Print or save as PDF"><FileDown size={14} /></button>
+                        {documentAttachments(row).map((attachment) => <button key={attachment.path} className="icon-button" type="button" onClick={() => void downloadPrivateDocument(attachment, setError)} aria-label={`Download ${attachment.name}`} title={`Download ${attachment.name}`}><FileDown size={14} /></button>)}
                       </>}
-                      {canEdit && <button className="icon-button" type="button" onClick={() => { setEditing(row); setIsNew(false); }} aria-label="Edit record" title="Edit record"><Pencil size={14} /></button>}
+                      {config.table === 'finance_transactions' && financeDocumentPath && financeDocumentName && <button className="icon-button" type="button" onClick={() => void downloadStorageFile('finance-documents', financeDocumentPath, financeDocumentName, setError)} aria-label={`Download ${financeDocumentName}`} title={`Download ${financeDocumentName}`}><FileDown size={14} /></button>}
+                      {canEdit && config.table !== 'newsletter_subscribers' && <button className="icon-button" type="button" onClick={() => { setEditing(row); setIsNew(false); setFieldErrors({}); setError(null); }} aria-label="Edit record" title="Edit record"><Pencil size={14} /></button>}
                       {canEdit && config.canArchive !== false && <button className="icon-button" type="button" onClick={() => setConfirmingId(confirmingId === rowId ? null : rowId)} disabled={busy} aria-label={removeLabel} title={removeLabel}><Trash2 size={14} /></button>}
                     </div>
-                    {confirmingId === rowId && <div className="row-confirmation" role="group" aria-label={`Confirm ${removeLabel.toLowerCase()}`}>
-                      <span>{removeLabel} this record?</span>
-                      <button type="button" className="button button-danger button-small" disabled={busy} onClick={() => void archive(row)}>{busy ? 'Working…' : 'Confirm'}</button>
-                      <button type="button" className="button button-outline button-small" disabled={busy} onClick={() => setConfirmingId(null)}>Cancel</button>
-                    </div>}
                   </td>}
                 </tr>
               );
@@ -918,21 +1406,56 @@ function RecordWorkspace({ config }: { config: TableConfig }) {
         </div>
       )}
       {!loading && rows.length > pageSize && <div className="pagination"><span className="field-hint">Showing {page * pageSize + 1}–{Math.min((page + 1) * pageSize, rows.length)} of {rows.length}</span><div className="row-actions"><button className="button button-outline button-small" type="button" disabled={page === 0} onClick={() => setPage((current) => current - 1)}>Previous</button><button className="button button-outline button-small" type="button" disabled={(page + 1) * pageSize >= rows.length} onClick={() => setPage((current) => current + 1)}>Next</button></div></div>}
-      {editing && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setEditing(null); }}><div className="modal record-modal" role="dialog" aria-modal="true" aria-labelledby="record-editor-title"><div className="modal-header"><div><div className="eyebrow">{isNew ? 'Create record' : 'Update record'}</div><h2 id="record-editor-title">{config.title}</h2></div><button className="icon-button" type="button" onClick={() => setEditing(null)} aria-label="Close form"><X size={17} /></button></div><form className="modal-body" onSubmit={(event) => void save(event)}>{['events', 'announcements'].includes(config.table) && <div className="notice"><Shield size={16} /><span>Subscriber email notifications are not configured. Publishing a record will not send email.</span></div>}<div className="form-grid">{config.fields.map((item) => <FieldEditor key={item.key} field={item} value={getEditorFieldValue(editing, item)} folder={safeName(config.table)} isNew={isNew} />)}</div>{error && <div role="alert" className="form-message error">{error}</div>}<div className="record-form-actions"><button type="button" className="button button-outline" disabled={busy} onClick={() => setEditing(null)}>Cancel</button><button type="submit" className="button button-primary" disabled={busy}>{busy ? 'Saving…' : isNew ? 'Create record' : 'Save changes'} <Check size={14} /></button></div></form></div></div>}
+      {editing && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setEditing(null); }}><div className="modal record-modal" role="dialog" aria-modal="true" aria-labelledby="record-editor-title"><div className="modal-header"><div><div className="eyebrow">{isNew ? 'Create record' : 'Update record'}</div><h2 id="record-editor-title">{config.title}</h2></div><button className="icon-button" type="button" onClick={() => setEditing(null)} aria-label="Close form"><X size={17} /></button></div><form className="modal-body" noValidate onSubmit={(event) => void save(event)}>{['events', 'announcements'].includes(config.table) && <div className="notice"><Shield size={16} /><span>Subscriber email notifications are not configured. Publishing a record will not send email.</span></div>}<div className="form-grid">{config.fields.filter((item) => item.key !== 'consent_received' || isNew).map((item) => <FieldEditor key={item.key} field={item} value={getEditorFieldValue(editing, item)} folder={safeName(config.table)} isNew={isNew} error={fieldErrors[item.key]} />)}</div>{error && <div role="alert" className="form-message error">{error}</div>}<div className="record-form-actions"><button type="button" className="button button-outline" disabled={busy} onClick={() => setEditing(null)}>Cancel</button><button type="submit" className="button button-primary" disabled={busy}>{busy ? 'Saving…' : isNew ? 'Create record' : 'Save changes'} <Check size={14} /></button></div></form></div></div>}
+      {confirmingRow && <ConfirmActionDialog
+        title={`${config.archiveLabel ?? 'Archive record'}?`}
+        message={config.table === 'newsletter_subscribers'
+          ? `This permanently deletes ${String(confirmingRow.email ?? 'this email address')} from the subscriber list.`
+          : `This will remove “${String(confirmingRow.title ?? confirmingRow.name ?? 'this record')}” from the active records. You can’t undo this here.`}
+        confirmLabel={busy ? 'Working…' : 'Confirm'}
+        busy={busy}
+        onCancel={() => setConfirmingId(null)}
+        onConfirm={() => void archive(confirmingRow)}
+      />}
     </section>
   );
 }
 
 function getEditorFieldValue(record: DataRow, item: Field) {
   const value = record[item.key];
+  if (item.key === 'avatar_url' && typeof value === 'string') {
+    return { url: value, position: typeof record.avatar_object_position === 'string' ? record.avatar_object_position : '50% 50%' };
+  }
+  if (item.kind === 'private-file') return { path: record.document_path, name: record.document_name };
   if (item.kind === 'image-list' && typeof record.image_url === 'string' && record.image_url.trim() && (!Array.isArray(value) || value.length === 0)) {
     return [{ url: record.image_url, caption: '' }];
   }
   return value;
 }
 
-function FieldEditor({ field: item, value, folder, isNew }: { field: Field; value: unknown; folder: string; isNew: boolean }) {
-  const [imageUrl, setImageUrl] = useState(typeof value === 'string' ? value : '');
+function recordPreviewImages(row: DataRow) {
+  const imageList = row.additional_images;
+  const images = Array.isArray(imageList)
+    ? imageList.flatMap((asset) => typeof asset === 'object' && asset !== null && 'url' in asset && typeof asset.url === 'string' ? [asset.url] : [])
+    : [];
+  return images.length ? images : [row.image_url, row.cover_image_url, row.logo_url]
+    .filter((value): value is string => typeof value === 'string' && value.length > 0);
+}
+
+function FieldEditor({ field: item, value, folder, isNew, error }: { field: Field; value: unknown; folder: string; isNew: boolean; error?: string }) {
+  const documentBody = typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : {};
+  const privateFileValue = typeof value === 'object' && value !== null && !Array.isArray(value) ? value as { path?: unknown; name?: unknown } : {};
+  const imageFieldValue = typeof value === 'object' && value !== null && !Array.isArray(value) ? value as { url?: unknown; position?: unknown } : {};
+  const [imageUrl, setImageUrl] = useState(typeof value === 'string' ? value : typeof imageFieldValue.url === 'string' ? imageFieldValue.url : '');
+  const [avatarPosition, setAvatarPosition] = useState(() => {
+    const position = typeof imageFieldValue.position === 'string' ? imageFieldValue.position : '50% 50%';
+    const [x = '50%', y = '50%'] = position.split(/\s+/);
+    return {
+      x: Math.max(0, Math.min(100, Number.parseFloat(x) || 50)),
+      y: Math.max(0, Math.min(100, Number.parseFloat(y) || 50)),
+    };
+  });
+  const avatarDrag = useRef<{ pointerId: number; x: number; y: number } | null>(null);
   const [imageList, setImageList] = useState<Array<{ url: string; caption: string }>>(
     Array.isArray(value)
       ? value.flatMap((asset) => {
@@ -943,12 +1466,91 @@ function FieldEditor({ field: item, value, folder, isNew }: { field: Field; valu
   );
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [documentText, setDocumentText] = useState(typeof documentBody.text === 'string' ? documentBody.text : '');
+  const [documentFiles, setDocumentFiles] = useState<DocumentAttachment[]>(documentAttachments({ body: documentBody }));
+  const [privateFilePath, setPrivateFilePath] = useState(typeof privateFileValue.path === 'string' ? privateFileValue.path : '');
+  const [privateFileName, setPrivateFileName] = useState(typeof privateFileValue.name === 'string' ? privateFileValue.name : '');
   const valueForField = item.kind === 'json'
     ? formatStructuredField(item.key, value ?? (item.key === 'content' || item.key === 'body' || item.key === 'progress' ? {} : []))
     : item.kind === 'tags' && Array.isArray(value) ? value.join(', ')
       : item.kind === 'date' ? typeof value === 'string' && value ? value.slice(0, 10) : isNew && item.key !== 'date_of_birth' ? localDateValue() : ''
         : item.kind === 'datetime' ? typeof value === 'string' && value ? value.slice(0, 16) : isNew ? localDateTimeValue() : ''
           : typeof value === 'string' || typeof value === 'number' ? String(value) : '';
+  if (item.kind === 'private-file') {
+    const handleFile = async (event: ChangeEvent<HTMLInputElement>) => {
+      const file = event.currentTarget.files?.[0];
+      event.currentTarget.value = '';
+      if (!file) return;
+      setUploading(true);
+      setUploadError(null);
+      try {
+        if (file.size > 20 * 1024 * 1024) throw new Error('Supporting files must be 20 MB or smaller.');
+        const client = getSupabaseClient();
+        const { data: userData, error: userError } = await client.auth.getUser();
+        if (userError || !userData.user) throw new Error('Your session expired. Sign in again before uploading files.');
+        const path = `${userData.user.id}/${crypto.randomUUID()}-${file.name.replace(/[^\w.-]/g, '_')}`;
+        const { error: storageError } = await client.storage.from('finance-documents').upload(path, file, {
+          contentType: file.type || 'application/octet-stream',
+          upsert: false,
+        });
+        if (storageError) throw new Error(`Could not upload ${file.name}: ${storageError.message}`);
+        setPrivateFilePath(path);
+        setPrivateFileName(file.name);
+      } catch (uploadFailure) {
+        setUploadError(uploadFailure instanceof Error ? uploadFailure.message : 'The supporting file could not be uploaded.');
+      } finally {
+        setUploading(false);
+      }
+    };
+    return <div className="field field-span">
+      <span className="field-label">{item.label}</span>
+      <input type="hidden" name={item.key} value={privateFilePath} data-uploading={uploading ? 'true' : 'false'} />
+      <input type="hidden" name="document_name" value={privateFileName} />
+      <label className="image-upload-button"><FileUp size={16} /> {uploading ? 'Uploading file…' : 'Upload a private supporting file'}<input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.jpg,.jpeg,.png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,image/jpeg,image/png" onChange={(event) => void handleFile(event)} disabled={uploading} /></label>
+      <span className="field-hint">Only Finance and Administrators can access this file. Maximum 20 MB.</span>
+      {privateFileName && <span className="field-hint">Attached: {privateFileName} <button type="button" className="text-button" onClick={() => { setPrivateFilePath(''); setPrivateFileName(''); }}>Remove</button></span>}
+      {uploadError && <span role="alert" className="field-error">{uploadError}</span>}
+    </div>;
+  }
+  if (item.kind === 'document') {
+    const handleFiles = async (event: ChangeEvent<HTMLInputElement>) => {
+      const files = Array.from(event.currentTarget.files ?? []);
+      event.currentTarget.value = '';
+      if (!files.length) return;
+      setUploading(true);
+      setUploadError(null);
+      try {
+        const client = getSupabaseClient();
+        const { data: userData, error: userError } = await client.auth.getUser();
+        if (userError || !userData.user) throw new Error('Your session expired. Sign in again before uploading files.');
+        const uploaded = await Promise.all(files.map(async (file): Promise<DocumentAttachment> => {
+          if (file.size > 20 * 1024 * 1024) throw new Error(`${file.name} is larger than the 20 MB limit.`);
+          const path = `${userData.user.id}/${crypto.randomUUID()}-${file.name.replace(/[^\w.-]/g, '_')}`;
+          const { error: storageError } = await client.storage.from('secretariat-documents').upload(path, file, {
+            contentType: file.type || 'application/octet-stream',
+            upsert: false,
+          });
+          if (storageError) throw new Error(`Could not upload ${file.name}: ${storageError.message}`);
+          return { path, name: file.name, size: file.size, type: file.type };
+        }));
+        setDocumentFiles((current) => [...current, ...uploaded]);
+      } catch (uploadFailure) {
+        setUploadError(uploadFailure instanceof Error ? uploadFailure.message : 'The document could not be uploaded.');
+      } finally {
+        setUploading(false);
+      }
+    };
+    return <div className="field field-span">
+      <span className="field-label">{item.label}</span>
+      <input type="hidden" name={item.key} value={JSON.stringify({ text: documentText, attachments: documentFiles })} data-uploading={uploading ? 'true' : 'false'} />
+      <label className="field"><span className="field-label">Record notes</span><textarea className="textarea" rows={5} value={documentText} onChange={(event) => setDocumentText(event.target.value)} placeholder="Notes about this completed record (optional)" /></label>
+      <label className="image-upload-button"><FileUp size={16} /> {uploading ? 'Uploading files…' : 'Attach completed document(s)'}<input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.jpg,.jpeg,.png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,image/jpeg,image/png" multiple onChange={(event) => void handleFiles(event)} disabled={uploading} /></label>
+      <span className="field-hint">Private storage · PDF, Word, Excel, text or image files · maximum 20 MB each.</span>
+      {documentFiles.length > 0 && <ul className="document-attachment-list">{documentFiles.map((attachment) => <li key={attachment.path}><FileText size={14} /><span>{attachment.name}</span><button type="button" className="button button-outline button-small" onClick={() => setDocumentFiles((current) => current.filter((file) => file.path !== attachment.path))}>Remove</button></li>)}</ul>}
+      {error && <span id={`field-error-${item.key}`} role="alert" className="field-error">{error}</span>}
+      {uploadError && <span role="alert" className="field-error">{uploadError}</span>}
+    </div>;
+  }
   if (item.kind === 'image-list') {
     const handleFiles = async (event: ChangeEvent<HTMLInputElement>) => {
       const files = Array.from(event.currentTarget.files ?? []);
@@ -967,7 +1569,7 @@ function FieldEditor({ field: item, value, folder, isNew }: { field: Field; valu
     };
     return (
       <div className="field field-span">
-        <span className="field-label">{item.label} *</span>
+        <span className="field-label">{item.label}{item.required && ' *'}</span>
         <input type="hidden" name={item.key} value={JSON.stringify(imageList)} />
         <label className="image-upload-button">
           <ImageUp size={16} /> {uploading ? 'Uploading images…' : 'Add image(s) — select one or several'}
@@ -982,10 +1584,12 @@ function FieldEditor({ field: item, value, folder, isNew }: { field: Field; valu
           </div>
         ))}</div>}
         {uploadError && <span role="alert" className="form-message error">{uploadError}</span>}
+        {error && <span id={`field-error-${item.key}`} role="alert" className="field-error">{error}</span>}
       </div>
     );
   }
   if (item.kind === 'image') {
+    const isTeamAvatar = folder === 'team-members' && item.key === 'avatar_url';
     const handleFile = async (event: ChangeEvent<HTMLInputElement>) => {
       const file = event.currentTarget.files?.[0];
       event.currentTarget.value = '';
@@ -1003,19 +1607,51 @@ function FieldEditor({ field: item, value, folder, isNew }: { field: Field; valu
     return (
       <div className="field field-span">
         <span className="field-label">{item.label}{item.required && ' *'}</span>
-        <input type="hidden" name={item.key} value={imageUrl} required={item.required} />
+        <input type="hidden" name={item.key} value={imageUrl} required={item.required} aria-invalid={Boolean(error)} aria-describedby={error ? `field-error-${item.key}` : undefined} />
+        {isTeamAvatar && <input type="hidden" name="avatar_object_position" value={`${avatarPosition.x}% ${avatarPosition.y}%`} />}
         <label className="image-upload-button">
           <ImageUp size={16} /> {uploading ? 'Uploading image…' : 'Choose image (JPEG, PNG, WebP or AVIF, up to 5 MB)'}
           <input type="file" accept="image/jpeg,image/png,image/webp,image/avif" onChange={(event) => void handleFile(event)} disabled={uploading} />
         </label>
         <label className="field"><span className="field-label">Or enter an existing image URL</span><input className="input" type="url" name={`${item.key}_manual`} value={imageUrl} onChange={(event) => setImageUrl(event.target.value)} placeholder="https://…" /></label>
-        {imageUrl && <img className="upload-preview" src={imageUrl} alt="Selected image preview" />}
+        {isTeamAvatar && imageUrl && <div className="avatar-crop-editor">
+          <div
+            className="avatar-crop-preview"
+            onPointerDown={(event) => {
+              event.currentTarget.setPointerCapture(event.pointerId);
+              avatarDrag.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
+            }}
+            onPointerMove={(event) => {
+              const drag = avatarDrag.current;
+              if (!drag || drag.pointerId !== event.pointerId) return;
+              const bounds = event.currentTarget.getBoundingClientRect();
+              const deltaX = event.clientX - drag.x;
+              const deltaY = event.clientY - drag.y;
+              setAvatarPosition((current) => ({
+                x: Math.max(0, Math.min(100, current.x - deltaX / bounds.width * 100)),
+                y: Math.max(0, Math.min(100, current.y - deltaY / bounds.height * 100)),
+              }));
+              avatarDrag.current = { ...drag, x: event.clientX, y: event.clientY };
+            }}
+            onPointerUp={() => { avatarDrag.current = null; }}
+            onPointerCancel={() => { avatarDrag.current = null; }}
+            aria-label="Drag the photo to adjust the circular crop"
+          >
+            <img src={imageUrl} alt="Profile crop preview" style={{ objectPosition: `${avatarPosition.x}% ${avatarPosition.y}%` }} draggable={false} />
+          </div>
+          <div className="avatar-crop-controls">
+            <span className="field-hint">Drag the photo to frame it inside the circle.</span>
+            <button type="button" className="button button-outline button-small" onClick={() => setAvatarPosition({ x: 50, y: 50 })}>Center photo</button>
+          </div>
+        </div>}
+        {imageUrl && !isTeamAvatar && <img className="upload-preview" src={imageUrl} alt="Selected image preview" />}
         {uploadError && <span role="alert" className="form-message error">{uploadError}</span>}
+        {error && <span id={`field-error-${item.key}`} role="alert" className="field-error">{error}</span>}
       </div>
     );
   }
   if (item.kind === 'reference' && item.referenceTable) {
-    return <ReferenceFieldEditor field={item} value={value} />;
+    return <ReferenceFieldEditor field={item} value={value} error={error} />;
   }
   const helperText: Record<string, string> = {
     content: 'Enter one section per line, for example: intro: Our community supports every child.',
@@ -1030,18 +1666,19 @@ function FieldEditor({ field: item, value, folder, isNew }: { field: Field; valu
   return (
     <label className={`field${item.kind === 'textarea' || item.kind === 'json' ? ' field-span' : ''}`}>
       <span className="field-label">{item.label}{item.required && ' *'}</span>
-      {item.kind === 'boolean' ? <span className="checkbox-field"><input type="checkbox" name={item.key} defaultChecked={Boolean(value)} /> Yes / enabled</span>
-        : item.kind === 'select' ? <select className="select" name={item.key} defaultValue={String(value ?? item.options?.[0] ?? '')}>{item.options?.map((option) => <option value={option} key={option}>{option.replaceAll('_', ' ')}</option>)}</select>
-          : item.kind === 'textarea' || item.kind === 'json' ? <textarea className="textarea" name={item.key} required={item.required} rows={item.kind === 'json' ? 5 : 5} defaultValue={valueForField} placeholder={item.placeholder ?? (item.kind === 'json' ? 'Enter each item on a new line' : undefined)} />
-            : <input className="input" name={item.key} type={item.kind === 'date' ? 'date' : item.kind === 'datetime' ? 'datetime-local' : item.kind === 'number' ? 'number' : 'text'} step={item.kind === 'number' ? 'any' : undefined} required={item.required} defaultValue={valueForField} placeholder={item.placeholder} /> }
+      {item.kind === 'boolean' ? <span className="checkbox-field"><input type="checkbox" name={item.key} required={item.required} aria-invalid={Boolean(error)} aria-describedby={error ? `field-error-${item.key}` : undefined} defaultChecked={Boolean(value)} /> Yes / enabled</span>
+        : item.kind === 'select' ? <select className="select" name={item.key} defaultValue={String(value ?? item.options?.[0] ?? '')} aria-invalid={Boolean(error)} aria-describedby={error ? `field-error-${item.key}` : undefined}>{item.options?.map((option) => <option value={option} key={option}>{option.replaceAll('_', ' ')}</option>)}</select>
+          : item.kind === 'textarea' || item.kind === 'json' ? <textarea className="textarea" name={item.key} required={item.required} aria-invalid={Boolean(error)} aria-describedby={error ? `field-error-${item.key}` : undefined} rows={5} defaultValue={valueForField} placeholder={item.placeholder ?? (item.kind === 'json' ? 'Enter each item on a new line' : undefined)} />
+            : <input className="input" name={item.key} type={item.kind === 'date' ? 'date' : item.kind === 'datetime' ? 'datetime-local' : item.kind === 'number' ? 'number' : item.key === 'email' ? 'email' : 'text'} step={item.kind === 'number' ? 'any' : undefined} required={item.required} aria-invalid={Boolean(error)} aria-describedby={error ? `field-error-${item.key}` : undefined} defaultValue={valueForField} placeholder={item.placeholder} /> }
       {item.kind === 'json' && helperText[item.key] && <span className="field-hint">{helperText[item.key]}</span>}
+      {error && <span id={`field-error-${item.key}`} role="alert" className="field-error">{error}</span>}
     </label>
   );
 }
 
-function ReferenceFieldEditor({ field: item, value }: { field: Field; value: unknown }) {
+function ReferenceFieldEditor({ field: item, value, error }: { field: Field; value: unknown; error?: string }) {
   const [rows, setRows] = useState<DataRow[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState(typeof value === 'string' ? value : '');
   useEffect(() => {
@@ -1050,7 +1687,7 @@ function ReferenceFieldEditor({ field: item, value }: { field: Field; value: unk
     void listAdminRows(item.referenceTable)
       .then((result) => { if (active) setRows(result); })
       .catch((loadError: unknown) => {
-        if (active) setError(loadError instanceof Error ? loadError.message : `Unable to load ${item.label.toLowerCase()} choices.`);
+        if (active) setLoadError(loadError instanceof Error ? loadError.message : `Unable to load ${item.label.toLowerCase()} choices.`);
       })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
@@ -1059,7 +1696,7 @@ function ReferenceFieldEditor({ field: item, value }: { field: Field; value: unk
   return (
     <label className="field">
       <span className="field-label">{item.label}{item.required && ' *'}</span>
-      <select className="select" name={item.key} required={item.required} value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>
+      <select className="select" name={item.key} required={item.required} value={selectedId} onChange={(event) => setSelectedId(event.target.value)} aria-invalid={Boolean(error)} aria-describedby={error ? `field-error-${item.key}` : undefined}>
         <option value="">{loading ? 'Loading choices…' : `Choose ${item.label.toLowerCase()}`}</option>
         {selectedId && !selectedExists && <option value={selectedId}>Keep existing linked record</option>}
         {rows.map((row) => {
@@ -1068,8 +1705,9 @@ function ReferenceFieldEditor({ field: item, value }: { field: Field; value: unk
           return <option value={id} key={id}>{label || 'Unnamed record'}</option>;
         })}
       </select>
-      {error && <span role="alert" className="field-hint form-error-text">{error}</span>}
-      {!loading && !error && rows.length === 0 && <span className="field-hint">No available records to link yet. Create the related record first.</span>}
+      {error && <span id={`field-error-${item.key}`} role="alert" className="field-error">{error}</span>}
+      {loadError && <span role="alert" className="field-hint form-error-text">{loadError}</span>}
+      {!loading && !loadError && rows.length === 0 && <span className="field-hint">No available records to link yet. Create the related record first.</span>}
     </label>
   );
 }

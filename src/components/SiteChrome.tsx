@@ -7,25 +7,31 @@ import { useSiteContent } from '../lib/site-content-context';
 import { useTheme } from '../lib/theme-context';
 
 const publicLinks = navItems.filter((item) => item.href !== '/portal');
-const workLinks = publicLinks.filter((item) => ['/programs', '/projects', '/impact'].includes(item.href));
-const generalLinks = publicLinks.filter((item) => !workLinks.includes(item) && item.href !== '/about');
+const workLinks = publicLinks.filter((item) => ['/students', '/programs'].includes(item.href));
+const givingLinks = ['/donate', '/partners'].flatMap((href) => publicLinks.filter((item) => item.href === href));
+const generalLinks = publicLinks.filter((item) =>
+  !workLinks.includes(item) && !givingLinks.includes(item) && item.href !== '/about');
 const currentYear = new Date().getFullYear();
 
 function NavigationLinks({ onNavigate }: { onNavigate?: () => void }) {
   const { pathname } = useLocation();
   const workMenuRef = useRef<HTMLDetailsElement>(null);
   const aboutMenuRef = useRef<HTMLDetailsElement>(null);
+  const givingMenuRef = useRef<HTMLDetailsElement>(null);
   const isWorkActive = workLinks.some((item) => pathname === item.href || pathname.startsWith(`${item.href}/`));
   const isAboutActive = ['/about', '/team'].includes(pathname);
+  const isGivingActive = givingLinks.some((item) => pathname === item.href || pathname.startsWith(`${item.href}/`));
   const closeMenu = () => {
     if (workMenuRef.current) workMenuRef.current.open = false;
     if (aboutMenuRef.current) aboutMenuRef.current.open = false;
+    if (givingMenuRef.current) givingMenuRef.current.open = false;
     onNavigate?.();
   };
 
   useEffect(() => {
     if (workMenuRef.current) workMenuRef.current.open = false;
     if (aboutMenuRef.current) aboutMenuRef.current.open = false;
+    if (givingMenuRef.current) givingMenuRef.current.open = false;
   }, [pathname]);
 
   return (
@@ -36,7 +42,12 @@ function NavigationLinks({ onNavigate }: { onNavigate?: () => void }) {
             {item.label}
           </NavLink>
           {item.href === '/' && (
-            <details className="about-menu work-menu" ref={aboutMenuRef}>
+            <details
+              className="about-menu work-menu"
+              ref={aboutMenuRef}
+              onPointerEnter={(event) => { if (event.pointerType === 'mouse' && aboutMenuRef.current) aboutMenuRef.current.open = true; }}
+              onPointerLeave={(event) => { if (event.pointerType === 'mouse' && aboutMenuRef.current) aboutMenuRef.current.open = false; }}
+            >
               <summary className={`nav-link work-menu-trigger${isAboutActive ? ' active' : ''}`} aria-label="About Heart of Sympathy">
                 About <ChevronDown size={14} aria-hidden="true" />
               </summary>
@@ -51,7 +62,12 @@ function NavigationLinks({ onNavigate }: { onNavigate?: () => void }) {
             </details>
           )}
           {item.href === '/' && (
-            <details className="work-menu" ref={workMenuRef}>
+            <details
+              className="work-menu"
+              ref={workMenuRef}
+              onPointerEnter={(event) => { if (event.pointerType === 'mouse' && workMenuRef.current) workMenuRef.current.open = true; }}
+              onPointerLeave={(event) => { if (event.pointerType === 'mouse' && workMenuRef.current) workMenuRef.current.open = false; }}
+            >
               <summary className={`nav-link work-menu-trigger${isWorkActive ? ' active' : ''}`} aria-label="Choose a work section">
                 Our work <ChevronDown size={14} aria-hidden="true" />
               </summary>
@@ -59,6 +75,25 @@ function NavigationLinks({ onNavigate }: { onNavigate?: () => void }) {
                 {workLinks.map((work) => (
                   <NavLink key={work.href} to={work.href} className={({ isActive }) => `work-menu-link${isActive ? ' active' : ''}`} onClick={closeMenu}>
                     <span>{work.label}</span><ArrowUpRight size={14} aria-hidden="true" />
+                  </NavLink>
+                ))}
+              </div>
+            </details>
+          )}
+          {item.href === '/events' && (
+            <details
+              className="work-menu"
+              ref={givingMenuRef}
+              onPointerEnter={(event) => { if (event.pointerType === 'mouse' && givingMenuRef.current) givingMenuRef.current.open = true; }}
+              onPointerLeave={(event) => { if (event.pointerType === 'mouse' && givingMenuRef.current) givingMenuRef.current.open = false; }}
+            >
+              <summary className={`nav-link work-menu-trigger${isGivingActive ? ' active' : ''}`} aria-label="Giving and partner organizations">
+                Donate <ChevronDown size={14} aria-hidden="true" />
+              </summary>
+              <div className="work-menu-panel">
+                {givingLinks.map((givingLink) => (
+                  <NavLink key={givingLink.href} to={givingLink.href} className={({ isActive }) => `work-menu-link${isActive ? ' active' : ''}`} onClick={closeMenu}>
+                    <span>{givingLink.href === '/partners' ? 'Partners' : 'Donate'}</span><ArrowUpRight size={14} aria-hidden="true" />
                   </NavLink>
                 ))}
               </div>
@@ -98,7 +133,6 @@ export function SiteHeader() {
             type="button"
             className="icon-button"
             aria-label={isHomePage ? 'Dark mode is fixed on the home page' : `Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
-            title={isHomePage ? 'Dark mode is fixed on the home page' : undefined}
             onClick={toggleTheme}
             disabled={isHomePage}
           >
@@ -134,8 +168,8 @@ export function SiteFooter() {
     <footer className="site-footer">
       <div className="wrap footer-cta">
         <div className="footer-cta-copy">
-          <div className="eyebrow">Together, we can make a difference</div>
-          <h2>Help build a future where every family can thrive.</h2>
+          <div className="eyebrow">Heart of Sympathy · Kigali</div>
+          <h2>Support students through education and family care.</h2>
           <p>{organization?.mission ?? siteConfig.mission}</p>
         </div>
         <div className="footer-cta-actions">
@@ -152,7 +186,7 @@ export function SiteFooter() {
               <span className="brand-tagline">{organization?.tagline ?? siteConfig.tagline}</span>
             </span>
           </Link>
-          <p className="footer-about">Rooted in compassion. Focused on brighter futures.</p>
+          <p className="footer-about">Youth-led student and family support in Kigali, Rwanda.</p>
           {socialLinks.length > 0 && (
             <div className="footer-socials" aria-label="Social media">
               {socialLinks.map((social) => <a key={social.id} href={social.url} target="_blank" rel="noreferrer">{social.platform}<ArrowUpRight size={12} /></a>)}
@@ -186,7 +220,7 @@ export function SiteFooter() {
       <div className="footer-bottom">
         <div className="wrap footer-bottom-row">
           <span>© {currentYear} {organization?.name ?? siteConfig.name}</span>
-          <span>Education · Nutrition · Family wellbeing · Kigali, Rwanda</span>
+          <span>Education · Nutrition · Health · Mentorship · Family support · Kigali, Rwanda</span>
         </div>
       </div>
     </footer>

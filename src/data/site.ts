@@ -9,15 +9,15 @@ export const siteConfig = {
   location: 'Kigali, Rwanda',
   founded: '2023',
   mission:
-    'Bridging vulnerable families to the future by providing educational needs to their children and ensuring a better diet for good health.',
+    'Heart of Sympathy supports students and families in Kigali through education, nutrition, health, mentorship, and practical family assistance.',
 };
 
 export const navItems: NavItem[] = [
   { label: 'Home', href: '/' },
   { label: 'About', href: '/about' },
+  { label: 'Our children', href: '/students' },
   { label: 'Programs', href: '/programs' },
-  { label: 'Projects', href: '/projects' },
-  { label: 'Impact', href: '/impact' },
+  { label: 'Partners', href: '/partners' },
   { label: 'Gallery', href: '/gallery' },
   { label: 'Events', href: '/events' },
   { label: 'Donate', href: '/donate' },

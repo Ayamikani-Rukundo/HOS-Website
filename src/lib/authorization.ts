@@ -63,11 +63,11 @@ export const portalDetails: Record<PortalKind, { label: string; description: str
 export const portalTeams: Partial<Record<OrganizationRole, { label: string; members: string[] }>> = {
   admin: {
     label: 'Administration team',
-    members: ['Ayamikani Rukundo Emmanuel', 'Tuyizer Salim'],
+    members: ['Ayamikani Rukundo Emmanuel (r.emmanuel4@isomo.rw)', 'Tuyizer Salim (tuyizeresalin@gmail.com)', 'Niyitanga Manasse (manasse@icircles.rw)'],
   },
   communications: {
     label: 'Communications team',
-    members: ['KEZA Praise', 'Ayamikani Rukundo Emmanuel', 'Tuyizer Salim'],
+    members: ['Tuyishime Egide (managing director has to know and update the site content)', 'KEZA Praise', 'Ayamikani Rukundo Emmanuel (r.emmanuel4@isomo.rw)', 'Tuyizer Salim (tuyizeresalin@gmail.com)'],
   },
   secretariat: {
     label: 'Secretariat team',

@@ -38,26 +38,24 @@ type TeamYear = {
     focus_area: string | null;
     biography: string | null;
     avatar_url: string | null;
+    avatar_object_position: string;
     sort_order: number;
   }>;
 };
 
-type Project = {
+type PartnerOrganization = {
   id: string;
-  program_id: string | null;
-  title: string;
+  name: string;
   description: string | null;
-  outcome_summary: string | null;
-  location: string | null;
-  status: string;
-  start_date: string | null;
-  completed_at: string | null;
-  cover_image_url: string | null;
+  focus_area: string | null;
+  logo_url: string | null;
+  website_url: string | null;
+  sort_order: number;
 };
 
 type Campaign = {
   id: string;
-  category_id: string | null;
+  category: string;
   slug: string | null;
   title: string;
   description: string | null;
@@ -65,25 +63,9 @@ type Campaign = {
   raised_amount: number | null;
   currency_code: string;
   cover_image_url: string | null;
-  donation_instructions: string | null;
-  suggested_amounts: number[];
-  payment_methods: string[];
+  starts_at: string | null;
+  ends_at: string | null;
   sort_order: number;
-};
-
-type ImpactMetric = {
-  id: string;
-  label: string;
-  value: string;
-  description: string | null;
-};
-
-type SuccessStory = {
-  id: string;
-  title: string;
-  summary: string;
-  story: string | null;
-  image_url: string | null;
 };
 
 type Event = {
@@ -114,6 +96,14 @@ type CampaignCategory = {
   name: string;
   description: string | null;
   sort_order: number;
+};
+
+type DonationMethod = {
+  id: string;
+  method_type: string;
+  label: string;
+  details: string;
+  instructions: string | null;
 };
 
 type ContactDetail = {
@@ -152,11 +142,10 @@ export type SiteContent = {
   organization: Organization | null;
   programs: Program[];
   teamYears: TeamYear[];
-  projects: Project[];
+  partners: PartnerOrganization[];
   campaigns: Campaign[];
+  donationMethods: DonationMethod[];
   campaignCategories: CampaignCategory[];
-  metrics: ImpactMetric[];
-  stories: SuccessStory[];
   events: Event[];
   announcements: Announcement[];
   gallery: GalleryImage[];
@@ -173,11 +162,10 @@ type SiteData = Pick<
   | 'organization'
   | 'programs'
   | 'teamYears'
-  | 'projects'
+  | 'partners'
   | 'campaigns'
+  | 'donationMethods'
   | 'campaignCategories'
-  | 'metrics'
-  | 'stories'
   | 'events'
   | 'announcements'
   | 'gallery'
@@ -190,11 +178,10 @@ const emptyData: SiteData = {
   organization: null,
   programs: [],
   teamYears: [],
-  projects: [],
+  partners: [],
   campaigns: [],
+  donationMethods: [],
   campaignCategories: [],
-  metrics: [],
-  stories: [],
   events: [],
   announcements: [],
   gallery: [],
@@ -212,7 +199,8 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(async () => {
     if (!isSupabaseConfigured) {
-      setError(`Database content is unavailable. ${supabaseConfigurationMessage}`);
+      console.error(`Website content is unavailable: ${supabaseConfigurationMessage}`);
+      setError('Some website information is temporarily unavailable. Please try again later.');
       setIsLoading(false);
       return;
     }
@@ -225,11 +213,10 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
       programResult,
       yearResult,
       memberResult,
-      projectResult,
+      partnerResult,
       campaignResult,
+      donationMethodsResult,
       categoryResult,
-      metricResult,
-      storyResult,
       eventResult,
       announcementResult,
       galleryResult,
@@ -241,12 +228,11 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
       client.from('organizations').select('name,tagline,location,founded_year,mission,email,phone,address,logo_url').limit(1).maybeSingle(),
       client.from('programs').select('id,slug,name,summary,description,impact,feature_label,cover_image_url,additional_images,sort_order').eq('is_published', true).order('sort_order'),
       client.from('team_years').select('id,year_label').eq('is_published', true).order('sort_order'),
-      client.from('team_members').select('id,team_year_id,full_name,role_title,focus_area,biography,avatar_url,sort_order').eq('is_published', true).eq('status', 'active').order('sort_order'),
-      client.from('projects').select('id,program_id,title,description,outcome_summary,location,status,start_date,completed_at,cover_image_url').eq('is_published', true).is('archived_at', null).order('start_date', { ascending: false }),
-      client.from('donation_campaigns').select('id,category_id,slug,title,description,target_amount,raised_amount,currency_code,cover_image_url,donation_instructions,suggested_amounts,payment_methods,sort_order').eq('is_published', true).eq('status', 'active').is('archived_at', null).order('sort_order'),
+      client.from('team_members').select('id,team_year_id,full_name,role_title,focus_area,biography,avatar_url,avatar_object_position,sort_order').eq('is_published', true).eq('status', 'active').order('sort_order'),
+      client.from('partner_organizations').select('id,name,description,focus_area,logo_url,website_url,sort_order').eq('is_published', true).is('archived_at', null).order('sort_order').order('name'),
+      client.from('donation_campaigns').select('id,category,slug,title,description,target_amount,raised_amount,currency_code,cover_image_url,starts_at,ends_at,sort_order').eq('is_published', true).eq('status', 'active').is('archived_at', null).order('sort_order'),
+      client.from('donation_methods').select('id,method_type,label,details,instructions').eq('is_active', true).eq('is_public', true).order('sort_order'),
       client.from('campaign_categories').select('id,name,description,sort_order').eq('is_published', true).is('archived_at', null).order('sort_order'),
-      client.from('impact_metrics').select('id,label,value,description').eq('is_published', true).order('sort_order'),
-      client.from('success_stories').select('id,title,summary,story,image_url').eq('is_published', true).order('published_at', { ascending: false }),
       client.from('events').select('id,title,summary,event_date,starts_at,ends_at,location,image_url,cover_image_url,registration_url,status').eq('is_published', true).eq('status', 'published').is('archived_at', null).order('event_date'),
       client.from('announcements').select('id,title,body,cover_image_url,published_at,expires_at').eq('is_published', true).eq('status', 'published').eq('audience', 'public').is('archived_at', null).order('published_at', { ascending: false }),
       client.from('galleries').select('id,title,image_url,alt_text,caption,description,collection_name,activity_date,sort_order').eq('is_published', true).is('archived_at', null).order('sort_order'),
@@ -257,16 +243,25 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
     ]);
 
     const galleryImagesColumnNotInstalled = galleryImagesResult.error?.message.includes('column galleries.additional_images does not exist') ?? false;
+    const donationMethodsTableMissing = donationMethodsResult.error?.code === '42P01'
+      || (
+        donationMethodsResult.error?.code === 'PGRST205'
+        && donationMethodsResult.error.message.includes('donation_methods')
+      )
+      || (
+        donationMethodsResult.error?.message.includes('donation_methods') === true
+        && donationMethodsResult.error.message.toLowerCase().includes('does not exist')
+      );
+    if (donationMethodsTableMissing) console.warn('Public donation methods are unavailable until the donation-methods migration is applied.', donationMethodsResult.error);
     const failure = [
       organizationResult.error,
       programResult.error,
       yearResult.error,
       memberResult.error,
-      projectResult.error,
+      partnerResult.error,
       campaignResult.error,
+      donationMethodsResult.error && !donationMethodsTableMissing ? donationMethodsResult.error : null,
       categoryResult.error,
-      metricResult.error,
-      storyResult.error,
       eventResult.error,
       announcementResult.error,
       galleryResult.error,
@@ -277,7 +272,8 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
     ].find((resultError) => resultError !== null);
 
     if (failure) {
-      setError(`Could not load website content from Supabase: ${failure.message}`);
+      console.error('Website content could not be loaded from Supabase.', failure);
+      setError('Some website information is temporarily unavailable. Please try again later.');
       setIsLoading(false);
       return;
     }
@@ -290,21 +286,21 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
         ...year,
         members: members
           .filter((member) => member.team_year_id === year.id)
-          .map(({ id, full_name, role_title, focus_area, biography, avatar_url, sort_order }) => ({
+          .map(({ id, full_name, role_title, focus_area, biography, avatar_url, avatar_object_position, sort_order }) => ({
             id,
             full_name,
             role_title,
             focus_area,
             biography,
             avatar_url,
+            avatar_object_position,
             sort_order,
           })),
       })),
-      projects: projectResult.data ?? [],
+      partners: partnerResult.data ?? [],
       campaigns: campaignResult.data ?? [],
+      donationMethods: donationMethodsTableMissing ? [] : donationMethodsResult.data ?? [],
       campaignCategories: categoryResult.data ?? [],
-      metrics: metricResult.data ?? [],
-      stories: storyResult.data ?? [],
       events: eventResult.data ?? [],
       announcements: announcementResult.data ?? [],
       gallery: (galleryResult.data ?? []).map((image) => ({
@@ -337,11 +333,10 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
       'programs',
       'team_years',
       'team_members',
-      'projects',
+      'partner_organizations',
       'donation_campaigns',
+      'donation_methods',
       'campaign_categories',
-      'impact_metrics',
-      'success_stories',
       'events',
       'announcements',
       'galleries',
@@ -367,7 +362,8 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
         setRealtimeError(null);
       }
       if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-        setRealtimeError(`Supabase Realtime subscription failed (${status}).`);
+        console.error(`Website live updates could not connect (${status}).`);
+        setRealtimeError('Live website updates are temporarily unavailable. Reload the page to check for recent changes.');
       }
     });
 

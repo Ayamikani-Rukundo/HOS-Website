@@ -1,5 +1,5 @@
--- Run after 20261104200000_connected_organization_platform.sql and
--- 20261104223000_frontend_platform_features.sql.
+-- Run after applying the project's Supabase migrations, including
+-- 20261106060000_giving_areas_and_subscriber_cleanup.sql.
 -- These checks are read-only and do not display contact, child, donor, or case data.
 
 with expected_tables(table_name) as (
@@ -15,6 +15,7 @@ with expected_tables(table_name) as (
     ('announcements'),
     ('campaign_categories'),
     ('donation_campaigns'),
+    ('donation_methods'),
     ('galleries'),
     ('social_links'),
     ('contact_details'),
@@ -88,6 +89,33 @@ union all
 select
   'newsletter unsubscribe function',
   to_regprocedure('public.unsubscribe_newsletter(text)') is not null
+union all
+select
+  'giving area category column',
+  exists(
+    select 1 from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'donation_campaigns'
+      and column_name = 'category'
+  )
+union all
+select
+  'giving area image upload policy',
+  exists(
+    select 1 from pg_policies
+    where schemaname = 'storage'
+      and tablename = 'objects'
+      and policyname = 'authorized staff upload public giving and program media'
+  )
+union all
+select
+  'newsletter subscribers in Realtime',
+  exists(
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'newsletter_subscribers'
+  )
 union all
 select
   'admin staff directory function',
