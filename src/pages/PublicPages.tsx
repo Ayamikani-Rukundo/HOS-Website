@@ -212,7 +212,6 @@ export function HomePage() {
             <div className="hero-actions">
               <Link className="button button-primary" to="/students">Meet our children <ArrowRight size={15} /></Link>
               <Link className="button button-outline" to="/donate">Ways to give <ArrowUpRight size={14} /></Link>
-              <Link className="button button-outline button-small home-quick-answers" to="/contact#quick-answers">Quick answers <ArrowRight size={13} /></Link>
             </div>
             <div className="hero-note"><MapPin size={15} /> Working with students and families in {organization?.location ?? siteConfig.location}</div>
           </div>

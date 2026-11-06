@@ -199,6 +199,7 @@ export function SiteFooter() {
             <Link to="/about">About<ArrowUpRight size={12} /></Link>
             <Link to="/team">Meet the team<ArrowUpRight size={12} /></Link>
             {generalLinks.filter((item) => !['/', '/donate', '/contact'].includes(item.href)).map((item) => <Link key={item.href} to={item.href}>{item.label}<ArrowUpRight size={12} /></Link>)}
+            <Link to="/contact#quick-answers" className="footer-faq-link"><span>FAQs · at the bottom of Contact</span><ArrowUpRight size={12} /></Link>
           </div>
         </div>
         <div className="footer-column footer-work-column">
