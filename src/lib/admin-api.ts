@@ -126,6 +126,22 @@ export async function listAdminRows(table: AdminTable, search = '') {
   if (archivedTables.includes(table)) {
     filters.push('archived_at=is.null');
   }
+  const activeFilters: Partial<Record<AdminTable, string[]>> = {
+    website_sections: ['is_published=eq.true'],
+    team_years: ['is_published=eq.true'],
+    team_members: ['is_published=eq.true', 'status=eq.active'],
+    programs: ['is_published=eq.true'],
+    volunteers: ['status=neq.inactive'],
+    volunteer_assignments: ['status=neq.cancelled'],
+    donation_methods: ['is_active=eq.true'],
+    department_updates: ['status=neq.archived'],
+    families: ['status=neq.closed'],
+    children: ['status=neq.closed'],
+    case_records: ['status=neq.closed'],
+    email_notification_jobs: ['status=neq.cancelled'],
+    grant_opportunities: ['status=neq.archived'],
+  };
+  filters.push(...(activeFilters[table] ?? []));
   if (table === 'newsletter_subscribers') {
     filters.push('is_confirmed=eq.true', 'unsubscribed_at=is.null');
   }
@@ -263,11 +279,15 @@ export async function archiveAdminRow(table: AdminTable, row: DataRow) {
     staff_accounts: null,
   };
   const archive = archiveFields[table];
-  if (!archive) {
-    await request<DataRow[]>(table, `id=eq.${encodeURIComponent(id)}`, 'DELETE');
-    return;
+  const changedRows = await request<DataRow[]>(
+    table,
+    `id=eq.${encodeURIComponent(id)}`,
+    archive ? 'PATCH' : 'DELETE',
+    archive ?? undefined,
+  );
+  if (!Array.isArray(changedRows) || changedRows.length === 0) {
+    throw new Error('No record was changed. It may already be removed, or your account may not have permission to delete it.');
   }
-  await request<DataRow[]>(table, `id=eq.${encodeURIComponent(id)}`, 'PATCH', archive);
 }
 
 const acceptedImageTypes = new Map([

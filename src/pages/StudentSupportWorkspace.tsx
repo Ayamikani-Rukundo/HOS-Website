@@ -85,8 +85,8 @@ export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
 
   const refresh = useCallback(async () => {
     const [childrenResult, familiesResult, profilesResult, updatesResult, assistanceResult] = await Promise.all([
-      client.from('children').select('id, family_id, child_code, first_name, last_name, date_of_birth, gender, school_name, grade_level, enrollment_status, status').order('first_name'),
-      client.from('families').select('id, household_code, primary_contact_name').order('primary_contact_name'),
+      client.from('children').select('id, family_id, child_code, first_name, last_name, date_of_birth, gender, school_name, grade_level, enrollment_status, status').neq('status', 'closed').order('first_name'),
+      client.from('families').select('id, household_code, primary_contact_name').neq('status', 'closed').order('primary_contact_name'),
       client.from('student_public_profiles').select('id, child_id, slug, display_name, profile_photo_url, public_bio, school_stage, is_published'),
       client.from('student_support_updates').select('id, child_id, occurred_on, category, title, private_notes').order('occurred_on', { ascending: false }),
       listAdminRows('assistance_records'),

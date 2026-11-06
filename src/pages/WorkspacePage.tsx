@@ -822,10 +822,13 @@ function AdminProgressWorkspace() {
     try {
       const { data, error: deleteError } = await client.rpc('delete_audit_events_by_ids', { p_event_ids: selectedEvents });
       if (deleteError) throw new Error(deleteError.message);
-      setMessage(`${data} selected ${data === 1 ? 'entry was' : 'entries were'} deleted.`);
+      await refresh();
       setSelectedEvents([]);
       setConfirmDeleteOpen(false);
-      await refresh();
+      if (typeof data !== 'number' || data !== selectedEvents.length) {
+        throw new Error(`Only ${typeof data === 'number' ? data : 0} of ${selectedEvents.length} selected audit entries were deleted. The list has been refreshed.`);
+      }
+      setMessage(`${data} selected ${data === 1 ? 'entry was' : 'entries were'} deleted.`);
     } catch (deleteError) {
       setConfirmDeleteOpen(false);
       setError(deleteError instanceof Error ? deleteError.message : 'Selected audit history could not be deleted.');
@@ -1230,6 +1233,7 @@ function RecordWorkspace({ config }: { config: TableConfig }) {
     try {
       await archiveAdminRow(config.table, row);
       setConfirmingId(null);
+      setRows((current) => current.filter((item) => String(item.id ?? '') !== recordId));
       await refresh(search);
     } catch (archiveError) {
       setConfirmingId(null);
