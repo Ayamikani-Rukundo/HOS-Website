@@ -64,7 +64,7 @@ button { color: inherit; }
 img { display: block; max-width: 100%; }
 a { color: inherit; text-decoration: none; }
 button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
-::selection { color: #142019; background: var(--gold); }
+::selection, ::-moz-selection { color: inherit; background: rgba(59, 130, 246, .38); }
 #root { min-height: 100vh; }
 
 .site { position: relative; isolation: isolate; min-height: 100vh; color: var(--ink); background: radial-gradient(ellipse at 86% 16%, rgba(52, 126, 103, .14), transparent 33%), var(--page); }
