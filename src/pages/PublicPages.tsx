@@ -609,6 +609,34 @@ export function ContactPage() {
       </section>
       <section className="wrap section-tight"><VolunteerForm /></section>
       <section className="wrap section-tight"><NewsletterForm compact /></section>
+      <section className="wrap section-tight contact-faq-section" aria-labelledby="contact-faq-title">
+        <div className="contact-faq-heading">
+          <div><div className="eyebrow">Quick answers</div><h2 id="contact-faq-title">Finding your way around HOS</h2></div>
+          <span>Short answers to common questions.</span>
+        </div>
+        <div className="contact-faq-list">
+          <details>
+            <summary>What do HOS programs do?</summary>
+            <p>They support students and families through education, nutrition, health, mentorship, and practical assistance. See the <Link to="/programs">Programs page</Link> for current details.</p>
+          </details>
+          <details>
+            <summary>Where can I see ways to give?</summary>
+            <p>Visit <Link to="/donate">Donate</Link> to browse current giving areas and the official payment instructions available for each one.</p>
+          </details>
+          <details>
+            <summary>Where can I find HOS events, photos, and team information?</summary>
+            <p>Use <Link to="/events">Events</Link> for updates, <Link to="/gallery">Gallery</Link> for activity photos, and <Link to="/team">Team</Link> to meet HOS staff.</p>
+          </details>
+          <details>
+            <summary>Why can’t I log in to the portal, and what is it for?</summary>
+            <p>The portal is for authorized HOS staff, not public visitors. At <Link to="/portal">Portal login</Link>, choose your department and use its assigned work email and password. If access still fails, contact your portal administrator to check your account or reset your password. The work email is a login only; it cannot send or receive email.</p>
+          </details>
+          <details>
+            <summary>Will I get an email reply after using the contact form?</summary>
+            <p>Your message is saved for the HOS team, but the form does not send an automatic email reply. Include a working email address so the team can follow up.</p>
+          </details>
+        </div>
+      </section>
     </>
   );
 }

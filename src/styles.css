@@ -327,6 +327,19 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .form-message.error { border-color: rgba(229, 161, 155, .35); color: var(--danger); }
 .form-message.success { border-color: rgba(168, 201, 167, .3); color: var(--success); }
 .contact-grid { display: grid; align-items: start; gap: 38px; grid-template-columns: .85fr 1.15fr; }
+.contact-faq-section { padding-top: 20px; }
+.contact-faq-heading { display: flex; align-items: end; justify-content: space-between; gap: 18px; margin-bottom: 12px; }
+.contact-faq-heading h2 { margin: 5px 0 0; font: 600 clamp(1.25rem, 2.5vw, 1.7rem)/1.15 var(--serif); }
+.contact-faq-heading > span { color: var(--muted); font-size: .73rem; }
+.contact-faq-list { display: grid; gap: 7px; }
+.contact-faq-list details { padding: 0 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.contact-faq-list summary { position: relative; padding: 12px 24px 12px 0; color: var(--ink); font-size: .82rem; font-weight: 600; cursor: pointer; list-style: none; }
+.contact-faq-list summary::-webkit-details-marker { display: none; }
+.contact-faq-list summary::after { position: absolute; top: 50%; right: 2px; color: var(--gold); content: '+'; font-size: 1.1rem; transform: translateY(-53%); }
+.contact-faq-list details[open] summary::after { content: '−'; }
+.contact-faq-list details p { margin: -2px 0 12px; color: var(--muted); font-size: .76rem; line-height: 1.6; }
+.contact-faq-list a { color: var(--gold-bright); text-decoration: underline; text-underline-offset: 2px; }
+.contact-faq-list summary:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
 .contact-list { display: grid; gap: 12px; }
 .contact-line { display: flex; gap: 12px; align-items: flex-start; padding: 13px 0; border-bottom: 1px solid var(--line); color: var(--ink-soft); }
 .contact-line svg { flex: 0 0 auto; color: var(--gold); }
@@ -786,6 +799,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   .story-illustration { min-height: 280px; }
   .newsletter-panel { grid-template-columns: 1fr; }
   .contact-grid { grid-template-columns: 1fr; }
+  .contact-faq-heading { align-items: flex-start; flex-direction: column; gap: 5px; }
   .footer-cta { align-items: flex-start; flex-direction: column; }
   .footer-cta-actions { display: flex; flex-wrap: wrap; }
   .footer-main { gap: 28px; grid-template-columns: 1fr 1fr; }
