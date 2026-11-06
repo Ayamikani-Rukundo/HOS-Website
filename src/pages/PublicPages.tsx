@@ -212,6 +212,7 @@ export function HomePage() {
             <div className="hero-actions">
               <Link className="button button-primary" to="/students">Meet our children <ArrowRight size={15} /></Link>
               <Link className="button button-outline" to="/donate">Ways to give <ArrowUpRight size={14} /></Link>
+              <Link className="button button-outline button-small home-quick-answers" to="/contact#quick-answers">Quick answers <ArrowRight size={13} /></Link>
             </div>
             <div className="hero-note"><MapPin size={15} /> Working with students and families in {organization?.location ?? siteConfig.location}</div>
           </div>
@@ -609,7 +610,7 @@ export function ContactPage() {
       </section>
       <section className="wrap section-tight"><VolunteerForm /></section>
       <section className="wrap section-tight"><NewsletterForm compact /></section>
-      <section className="wrap section-tight contact-faq-section" aria-labelledby="contact-faq-title">
+      <section id="quick-answers" className="wrap section-tight contact-faq-section" aria-labelledby="contact-faq-title">
         <div className="contact-faq-heading">
           <div><div className="eyebrow">Quick answers</div><h2 id="contact-faq-title">Finding your way around HOS</h2></div>
           <span>Short answers to common questions.</span>
@@ -634,6 +635,26 @@ export function ContactPage() {
           <details>
             <summary>Will I get an email reply after using the contact form?</summary>
             <p>Your message is saved for the HOS team, but the form does not send an automatic email reply. Include a working email address so the team can follow up.</p>
+          </details>
+          <details>
+            <summary>How can I volunteer with HOS?</summary>
+            <p>Fill out the volunteer form on this <Link to="/contact">Contact page</Link> with your interests and availability. The HOS team can follow up about next steps.</p>
+          </details>
+          <details>
+            <summary>How can my organization partner with HOS?</summary>
+            <p>Learn about current <Link to="/partners">partner organizations</Link>, then use the contact form to tell HOS about your organization and how you would like to collaborate.</p>
+          </details>
+          <details>
+            <summary>Why are some student details not shown publicly?</summary>
+            <p>Public profiles share only selected information. Private details—including health, family contact, and safeguarding information—are kept out of the public directory to protect students.</p>
+          </details>
+          <details>
+            <summary>Can I pay by card through this website?</summary>
+            <p>The website does not collect card numbers or payment security codes. Open a giving area on the <Link to="/donate">Donate page</Link> and follow its listed official payment instructions, or contact HOS to confirm a safe way to give.</p>
+          </details>
+          <details>
+            <summary>How do I know if an event or program is current?</summary>
+            <p>Check the latest information on the <Link to="/events">Events</Link> or <Link to="/programs">Programs</Link> page. For confirmation about a specific activity, contact HOS directly.</p>
           </details>
         </div>
       </section>

@@ -149,6 +149,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 :root[data-theme='light'] .home-site .hero-copy .eyebrow { color: #806b13; }
 .hero-copy p { max-width: 550px; color: var(--ink-soft); font-size: 1rem; line-height: 1.8; }
 .hero-actions { display: flex; flex-wrap: wrap; gap: 11px; margin-top: 25px; }
+.hero-actions .home-quick-answers { flex: 0 0 auto; align-self: center; min-height: 32px; padding: 6px 10px; font-size: .68rem; }
 .hero-note { display: flex; align-items: center; gap: 9px; margin-top: 29px; color: var(--muted); font-size: .81rem; }
 .hero-note svg { color: var(--gold); }
 .hero-art { position: relative; display: flex; min-width: 0; min-height: 350px; align-items: center; justify-content: center; flex-direction: column; gap: 16px; animation: fade-in .9s .12s both; }
@@ -850,6 +851,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   .wrap { width: calc(100% - 28px); }
   .hero-grid { padding-top: 20px; }
   .hero-actions .button { flex: 1 1 auto; }
+  .hero-actions .home-quick-answers { flex: 0 0 auto; }
   .grid-4 { grid-template-columns: 1fr 1fr; }
   .stat-card { padding: 14px; }
   .stat-value { font-size: 1.6rem; }
