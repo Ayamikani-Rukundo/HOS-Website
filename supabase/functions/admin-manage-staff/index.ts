@@ -21,6 +21,7 @@ const organizationRoles = [
   'finance',
   'fundraiser',
   'volunteer_manager',
+  'advocacy_lead',
   'hr',
   'staff',
 ];

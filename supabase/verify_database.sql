@@ -1,6 +1,8 @@
 -- Run after applying the project's Supabase migrations, including
 -- 20261106080000_live_admin_progress.sql and
--- 20261107200000_secretariat_document_formats.sql.
+-- 20261107200000_secretariat_document_formats.sql,
+-- 20261107210000_align_admin_portal_progress.sql, and
+-- 20261107220000_advocacy_portal.sql.
 -- These checks are read-only and do not display contact, child, donor, or case data.
 
 with expected_tables(table_name) as (
@@ -44,7 +46,8 @@ with expected_tables(table_name) as (
     ('department_updates'),
     ('website_page_views'),
     ('notification_preferences'),
-    ('grant_opportunities')
+    ('grant_opportunities'),
+    ('advocacy_campaigns')
 )
 select
   expected_tables.table_name,
@@ -143,6 +146,29 @@ union all
 select
   'admin portal progress function',
   to_regprocedure('public.get_admin_portal_metrics()') is not null
+union all
+select
+  'advocacy portal role is allowed',
+  exists (
+    select 1
+    from pg_constraint
+    where conrelid = 'public.user_roles'::regclass
+      and conname = 'user_roles_role_name_check'
+      and pg_get_constraintdef(oid) like '%advocacy_lead%'
+  )
+union all
+select
+  'advocacy campaigns RLS enabled',
+  coalesce((select relrowsecurity from pg_class where oid = to_regclass('public.advocacy_campaigns')), false)
+union all
+select
+  'advocacy image upload policy',
+  exists (
+    select 1 from pg_policies
+    where schemaname = 'storage'
+      and tablename = 'objects'
+      and policyname = 'advocacy staff upload public event media'
+  )
 union all
 select
   'audit history delete uses bigint IDs',

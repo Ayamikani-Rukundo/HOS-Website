@@ -91,6 +91,17 @@ type Announcement = {
   expires_at: string | null;
 };
 
+export type AdvocacyCampaign = {
+  id: string;
+  title: string;
+  focus_area: string;
+  summary: string;
+  starts_at: string;
+  ends_at: string | null;
+  location: string;
+  cover_image_url: string | null;
+};
+
 type CampaignCategory = {
   id: string;
   name: string;
@@ -148,6 +159,7 @@ export type SiteContent = {
   campaignCategories: CampaignCategory[];
   events: Event[];
   announcements: Announcement[];
+  advocacyCampaigns: AdvocacyCampaign[];
   gallery: GalleryImage[];
   contactDetails: ContactDetail[];
   socialLinks: SocialLink[];
@@ -168,6 +180,7 @@ type SiteData = Pick<
   | 'campaignCategories'
   | 'events'
   | 'announcements'
+  | 'advocacyCampaigns'
   | 'gallery'
   | 'contactDetails'
   | 'socialLinks'
@@ -184,6 +197,7 @@ const emptyData: SiteData = {
   campaignCategories: [],
   events: [],
   announcements: [],
+  advocacyCampaigns: [],
   gallery: [],
   contactDetails: [],
   socialLinks: [],
@@ -219,6 +233,7 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
       categoryResult,
       eventResult,
       announcementResult,
+      advocacyCampaignResult,
       galleryResult,
       galleryImagesResult,
       contactResult,
@@ -235,6 +250,7 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
       client.from('campaign_categories').select('id,name,description,sort_order').eq('is_published', true).is('archived_at', null).order('sort_order'),
       client.from('events').select('id,title,summary,event_date,starts_at,ends_at,location,image_url,cover_image_url,registration_url,status').eq('is_published', true).eq('status', 'published').is('archived_at', null).order('event_date'),
       client.from('announcements').select('id,title,body,cover_image_url,published_at,expires_at').eq('is_published', true).eq('status', 'published').eq('audience', 'public').is('archived_at', null).order('published_at', { ascending: false }),
+      client.from('advocacy_campaigns').select('id,title,focus_area,summary,starts_at,ends_at,location,cover_image_url').eq('status', 'published').is('archived_at', null).order('starts_at'),
       client.from('galleries').select('id,title,image_url,alt_text,caption,description,collection_name,activity_date,sort_order').eq('is_published', true).is('archived_at', null).order('sort_order'),
       client.from('galleries').select('id,additional_images').eq('is_published', true).is('archived_at', null),
       client.from('contact_details').select('id,label,value,category,is_public').eq('is_public', true).is('archived_at', null).order('sort_order'),
@@ -264,6 +280,7 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
       categoryResult.error,
       eventResult.error,
       announcementResult.error,
+      advocacyCampaignResult.error,
       galleryResult.error,
       galleryImagesResult.error && !galleryImagesColumnNotInstalled ? galleryImagesResult.error : null,
       contactResult.error,
@@ -303,6 +320,7 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
       campaignCategories: categoryResult.data ?? [],
       events: eventResult.data ?? [],
       announcements: announcementResult.data ?? [],
+      advocacyCampaigns: advocacyCampaignResult.data ?? [],
       gallery: (galleryResult.data ?? []).map((image) => ({
         ...image,
         additional_images: galleryImagesResult.data?.find((images) => images.id === image.id)?.additional_images ?? [],
@@ -339,6 +357,7 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
       'campaign_categories',
       'events',
       'announcements',
+      'advocacy_campaigns',
       'galleries',
       'contact_details',
       'social_links',

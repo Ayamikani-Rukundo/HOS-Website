@@ -10,6 +10,7 @@ const expectedAccounts = [
   ['Programs / Child Support', 'programs@hos.org', 'program_manager'],
   ['Case Worker', 'caseworker@hos.org', 'case_worker'],
   ['Fundraising / Grants', 'fundraising@hos.org', 'fundraiser'],
+  ['Advocacy', 'events@hos.org', 'advocacy_lead'],
 ];
 
 const readEnv = (path) => {

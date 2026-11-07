@@ -10,6 +10,7 @@ export type AdminTable =
   | 'galleries'
   | 'events'
   | 'announcements'
+  | 'advocacy_campaigns'
   | 'campaign_categories'
   | 'donation_campaigns'
   | 'contact_details'
@@ -117,6 +118,7 @@ export async function listAdminRows(table: AdminTable, search = '') {
     'announcements',
     'campaign_categories',
     'donation_campaigns',
+    'advocacy_campaigns',
     'finance_transactions',
     'contact_details',
     'social_links',
@@ -140,6 +142,7 @@ export async function listAdminRows(table: AdminTable, search = '') {
     case_records: ['status=neq.closed'],
     email_notification_jobs: ['status=neq.cancelled'],
     grant_opportunities: ['status=neq.archived'],
+    advocacy_campaigns: ['status=neq.cancelled'],
   };
   filters.push(...(activeFilters[table] ?? []));
   if (table === 'newsletter_subscribers') {
@@ -149,7 +152,7 @@ export async function listAdminRows(table: AdminTable, search = '') {
   else if (table === 'website_sections') filters.push('order=updated_at.desc');
   else if (table === 'partner_organizations') filters.push('order=sort_order.asc,name.asc');
   else if (table === 'audit_events') filters.push('order=occurred_at.desc');
-  else if (table === 'secretariat_documents' || table === 'department_updates' || table === 'grant_opportunities') {
+  else if (table === 'secretariat_documents' || table === 'department_updates' || table === 'grant_opportunities' || table === 'advocacy_campaigns') {
     filters.push('order=updated_at.desc');
   } else if (table === 'finance_transactions') {
     filters.push('order=transaction_date.desc');

@@ -458,15 +458,29 @@ export function GalleryPage() {
 }
 
 export function EventsPage() {
-  const { events, announcements, isLoading } = useSiteContent();
+  const { events, announcements, advocacyCampaigns, isLoading } = useSiteContent();
   const [eventId, setEventId] = useState<string | null>(null);
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<PublicListEntry | null>(null);
+  const [selectedCampaign, setSelectedCampaign] = useState<PublicListEntry | null>(null);
   const selectedEvent = events.find((event) => event.id === eventId);
   const timeline = [...events].sort((a, b) => new Date(b.event_date ?? 0).getTime() - new Date(a.event_date ?? 0).getTime());
+  const campaignItems = advocacyCampaigns.map((campaign) => ({
+    id: campaign.id,
+    title: campaign.title,
+    summary: campaign.summary,
+    details: `${campaign.focus_area}\n\n${campaign.summary}\n\n${formatDate(campaign.starts_at, { dateStyle: 'full', timeStyle: 'short' })}${campaign.ends_at ? ` – ${formatDate(campaign.ends_at, { timeStyle: 'short' })}` : ''}\n${campaign.location}`,
+    meta: `${formatDate(campaign.starts_at, { dateStyle: 'medium', timeStyle: 'short' })} · ${campaign.location}`,
+    image: campaign.cover_image_url,
+    label: `Advocacy · ${campaign.focus_area}`,
+  }));
   const announcementItems = announcements.map((announcement) => ({ id: announcement.id, title: announcement.title, summary: announcement.body, details: announcement.body, image: announcement.cover_image_url, label: formatDate(announcement.published_at) }));
   return (
     <>
-      <PageIntro eyebrow="Events & announcements" title="HOS events and updates." description="See upcoming events, past activities, and announcements from Heart of Sympathy." />
+      <PageIntro eyebrow="Events, advocacy & announcements" title="HOS events and updates." description="Explore public events, advocacy campaigns, and announcements from Heart of Sympathy." />
+      <section className="wrap section-tight">
+        <div className="section-heading"><div className="eyebrow">Advocacy campaigns</div><h2>Learn, connect, and take action.</h2><p>Group learning and awareness activities organized by the Advocacy team.</p></div>
+        {isLoading ? <div className="loading-inline"><span className="loading-dot" /> Loading advocacy campaigns…</div> : campaignItems.length > 0 ? <ConnectedList items={campaignItems} onSelect={setSelectedCampaign} /> : <EmptyState>No advocacy campaigns have been published yet.</EmptyState>}
+      </section>
       <section className="wrap section-tight">
         {isLoading ? <div className="loading-inline"><span className="loading-dot" /> Loading published updates…</div> : timeline.length > 0 ? <div className="timeline">{timeline.map((event) => <button type="button" className="timeline-item event-timeline-button" key={event.id} onClick={() => setEventId(event.id)}><time>{formatDate(event.event_date, { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' })}</time><h3>{event.title}</h3><p>{event.summary}</p><div className="event-meta"><span><MapPin size={13} /> {event.location ?? 'Location to be announced'}</span>{event.starts_at && <span><Clock3 size={13} /> {new Date(event.starts_at).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Kigali' })} CAT</span>}</div><span className="text-link">View details <ArrowRight size={13} /></span></button>)}</div> : <EmptyState>No public events have been published yet.</EmptyState>}
       </section>
@@ -474,6 +488,7 @@ export function EventsPage() {
         <div className="wrap"><div className="section-heading"><div className="eyebrow">Announcements</div><h2>Updates from HOS.</h2></div>{announcementItems.length > 0 ? <ConnectedList items={announcementItems} onSelect={setSelectedAnnouncement} /> : <EmptyState>No announcements have been published.</EmptyState>}</div>
       </section>
       {selectedEvent && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setEventId(null); }}><div className="modal event-modal" role="dialog" aria-modal="true" aria-labelledby="event-modal-title"><div className="modal-header"><h2 id="event-modal-title">{selectedEvent.title}</h2><button className="icon-button" type="button" onClick={() => setEventId(null)} aria-label="Close event details"><X size={17} /></button></div><div className="modal-body">{(selectedEvent.cover_image_url ?? selectedEvent.image_url) && <img className="event-modal-image" src={selectedEvent.cover_image_url ?? selectedEvent.image_url ?? ''} alt="" />}<div className="event-meta"><span><CalendarDays size={15} /> {formatDate(selectedEvent.event_date, { dateStyle: 'full' })}</span><span><MapPin size={15} /> {selectedEvent.location ?? 'Location to be announced'}</span></div><p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.8 }}>{selectedEvent.summary}</p>{selectedEvent.starts_at && <p><Clock3 size={14} /> {new Date(selectedEvent.starts_at).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Kigali' })}{selectedEvent.ends_at ? ` – ${new Date(selectedEvent.ends_at).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Kigali' })}` : ''} CAT</p>}{selectedEvent.registration_url && <a className="button button-primary" href={selectedEvent.registration_url} target="_blank" rel="noreferrer">Registration details <ArrowUpRight size={14} /></a>}</div></div></div>}
+      <PublicDetailDialog item={selectedCampaign} onClose={() => setSelectedCampaign(null)} />
       <PublicDetailDialog item={selectedAnnouncement} onClose={() => setSelectedAnnouncement(null)} />
     </>
   );

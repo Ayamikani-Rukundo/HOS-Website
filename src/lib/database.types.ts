@@ -108,6 +108,20 @@ export type Database = {
         notify_subscribers: boolean;
         archived_at: string | null;
       }>;
+      advocacy_campaigns: Table<{
+        id: string;
+        title: string;
+        focus_area: string;
+        summary: string;
+        starts_at: string;
+        ends_at: string | null;
+        location: string;
+        cover_image_url: string | null;
+        status: string;
+        created_at: string;
+        updated_at: string;
+        archived_at: string | null;
+      }>;
       campaign_categories: Table<{
         id: string;
         name: string;

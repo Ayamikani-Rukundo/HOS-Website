@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { ArrowRight, BookOpen, CircleDollarSign, Eye, EyeOff, FileText, HeartHandshake, ShieldCheck, X } from 'lucide-react';
+import { ArrowRight, BookOpen, CircleDollarSign, Eye, EyeOff, FileText, HeartHandshake, Megaphone, ShieldCheck, X } from 'lucide-react';
 import { BrowserRouter, Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { SiteFooter, SiteHeader } from './components/SiteChrome';
 import { AuthProvider } from './lib/auth';
@@ -215,7 +215,7 @@ function PortalPage() {
       role: 'communications',
       workspace: 'content',
       label: 'Communications',
-      description: 'Public website content, announcements and organization communications.',
+      description: 'Public website copy, programs, partners, gallery, and shared contact information.',
       icon: FileText,
     },
     {
@@ -250,8 +250,15 @@ function PortalPage() {
       role: 'fundraiser',
       workspace: 'fundraising',
       label: 'Fundraising / Grants',
-      description: 'Fundraising campaigns, donor relationships and grant opportunities.',
+      description: 'Donation campaigns, donor relationships and grant opportunities.',
       icon: HeartHandshake,
+    },
+    {
+      role: 'advocacy_lead',
+      workspace: 'advocacy',
+      label: 'Advocacy',
+      description: 'Plan public events, publish announcements and coordinate advocacy campaigns.',
+      icon: Megaphone,
     },
   ];
   const activeChoice = portalChoices.find((choice) => choice.role === selectedPortal);

@@ -11,6 +11,7 @@ const template = [
   'Programs / Child Support,programs@hos.org,program_manager,"Tesor RWOGERE; Babra Singana; Uwunkunda Pacifique; Isaro Michaella",',
   'Case Worker,caseworker@hos.org,case_worker,"Tesor RWOGERE; Babra Singana; Uwunkunda Pacifique; Isaro Michaella",',
   'Fundraising / Grants,fundraising@hos.org,fundraiser,"Benoit Ntwali Ngabo Teto; Habimana Kaela Naomi; Isingizwe Anita; Queen Merveille; Niyonsuti Don Joel",',
+  'Advocacy,events@hos.org,advocacy_lead,"Kelvin Izibyose (Dancer); Uwase Shiffa (MC)",',
   '',
 ].join('\n');
 writeFileSync(filename, template, { encoding: 'utf8', flag: 'wx' });

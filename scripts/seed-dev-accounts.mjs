@@ -12,6 +12,7 @@ const allowedRoles = new Set([
   'case_worker',
   'communications',
   'volunteer_manager',
+  'advocacy_lead',
   'hr',
   'staff',
 ]);
@@ -88,6 +89,7 @@ if (shouldGenerateAccounts) {
     { role: 'program_manager', full_name: 'Local Test Program Manager' },
     { role: 'case_worker', full_name: 'Local Test Case Worker' },
     { role: 'fundraiser', full_name: 'Local Test Fundraising Officer' },
+    { role: 'advocacy_lead', full_name: 'Local Test Advocacy Lead' },
   ];
   const emailAliases = {
     admin: 'adm',
@@ -98,6 +100,7 @@ if (shouldGenerateAccounts) {
     program_manager: 'prog',
     case_worker: 'case',
     fundraiser: 'fund',
+    advocacy_lead: 'adv',
   };
 
   let existingAccounts = [];
@@ -246,6 +249,7 @@ try {
     program_manager: 'Programs / Child Support',
     case_worker: 'Programs / Child Support',
     fundraiser: 'Fundraising / Grants',
+    advocacy_lead: 'Advocacy',
   };
   const workspaceRoleLabels = {
     admin: 'Administrator',
@@ -256,6 +260,7 @@ try {
     program_manager: 'Program manager',
     case_worker: 'Case worker',
     fundraiser: 'Fundraising officer',
+    advocacy_lead: 'Advocacy lead',
   };
   for (const account of accounts) {
     const email = typeof account.email === 'string' ? account.email.trim() : '';

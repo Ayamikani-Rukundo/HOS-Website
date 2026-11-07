@@ -13,10 +13,11 @@ export type OrganizationRole =
   | 'finance'
   | 'fundraiser'
   | 'volunteer_manager'
+  | 'advocacy_lead'
   | 'hr'
   | 'staff';
 
-export type PortalKind = 'content' | 'secretariat' | 'programs' | 'finance' | 'fundraising';
+export type PortalKind = 'content' | 'secretariat' | 'programs' | 'finance' | 'fundraising' | 'advocacy';
 
 export const rolePortals: Record<OrganizationRole, PortalKind[]> = {
   admin: ['content'],
@@ -32,6 +33,7 @@ export const rolePortals: Record<OrganizationRole, PortalKind[]> = {
   health_nutrition: ['programs'],
   finance: ['finance'],
   fundraiser: ['fundraising'],
+  advocacy_lead: ['advocacy'],
   volunteer_manager: ['secretariat'],
   hr: ['secretariat'],
   staff: [],
@@ -56,7 +58,11 @@ export const portalDetails: Record<PortalKind, { label: string; description: str
   },
   fundraising: {
     label: 'Fundraising / Grants',
-    description: 'Manage giving campaigns, donor relationships and grant opportunities.',
+    description: 'Manage donation campaigns, donor relationships and grant opportunities.',
+  },
+  advocacy: {
+    label: 'Advocacy',
+    description: 'Plan public events, publish announcements and coordinate advocacy campaigns.',
   },
 };
 
@@ -93,6 +99,10 @@ export const portalTeams: Partial<Record<OrganizationRole, { label: string; memb
     label: 'Fundraising / Grants team',
     members: ['Benoit Ntwali Ngabo Teto', 'Habimana Kaela Naomi', 'Isingizwe Anita', 'Queen Merveille', 'Niyonsuti Don Joel'],
   },
+  advocacy_lead: {
+    label: 'Advocacy team',
+    members: ['Kelvin Izibyose (Dancer)', 'Uwase Shiffa (MC)'],
+  },
 };
 
 const portalTeamRoles: Record<PortalKind, OrganizationRole[]> = {
@@ -101,6 +111,7 @@ const portalTeamRoles: Record<PortalKind, OrganizationRole[]> = {
   programs: ['program_manager', 'case_worker', 'child_protection', 'education_support', 'health_nutrition'],
   finance: ['finance'],
   fundraising: ['fundraiser'],
+  advocacy: ['advocacy_lead'],
 };
 
 export function getPortalTeam(portal: PortalKind, roles: string[]) {

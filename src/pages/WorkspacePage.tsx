@@ -13,10 +13,12 @@ import {
   FileUp,
   HeartHandshake,
   Eye,
+  EyeOff,
   ImageUp,
   LayoutDashboard,
   LoaderCircle,
   LogOut,
+  Megaphone,
   Pencil,
   Plus,
   RefreshCw,
@@ -81,8 +83,9 @@ const configs: Record<AdminTable, TableConfig> = {
   programs: { table: 'programs', title: 'Programs', description: 'Public program information and summaries. Saving publishes the program immediately.', columns: ['name', 'slug'], fields: [field('slug', 'URL slug', 'text', undefined, true), field('name', 'Name', 'text', undefined, true), field('summary', 'Summary', 'textarea', undefined, true), field('description', 'Description', 'textarea'), field('impact', 'Focus / impact', 'textarea'), field('feature_label'), field('cover_image_url', 'Cover image', 'image'), field('additional_images', 'Additional images', 'json'), field('objectives', 'Objectives (one per line)', 'json'), field('is_featured', 'Featured', 'boolean'), field('sort_order', 'Display order', 'number')] },
   partner_organizations: { table: 'partner_organizations', title: 'Partner organizations', description: 'Manage the organizations working alongside Heart of Sympathy. Saving publishes the partner immediately.', columns: ['name', 'focus_area', 'website_url'], fields: [field('name', 'Organization name', 'text', undefined, true), field('focus_area', 'Partnership focus'), field('description', 'About the partnership', 'textarea'), field('logo_url', 'Organization logo', 'image'), field('website_url', 'Website'), field('sort_order', 'Display order', 'number')] },
   galleries: { table: 'galleries', title: 'Gallery', description: 'Create a photo post with one or more original images. Saving publishes it immediately.', columns: ['title', 'collection_name'], fields: [field('title', 'Post title'), field('additional_images', 'Post images', 'image-list', undefined, true), field('alt_text', 'Alternative text'), field('caption', 'Caption', 'textarea'), field('description', 'Description', 'textarea'), field('collection_name', 'Collection'), field('activity_date', 'Activity date', 'date'), field('sort_order', 'Display order', 'number')] },
-  events: { table: 'events', title: 'Events', description: 'Public event details, timing and registration links. Saving publishes the event immediately.', columns: ['title', 'event_date', 'location'], fields: [field('title', 'Title', 'text', undefined, true), field('summary', 'Description', 'textarea', undefined, true), field('event_date', 'Event date', 'date'), field('starts_at', 'Starts at', 'datetime'), field('ends_at', 'Ends at', 'datetime'), field('location'), field('image_url', 'Image', 'image'), field('cover_image_url', 'Cover image', 'image'), field('registration_url', 'Registration URL')] },
-  announcements: { table: 'announcements', title: 'Announcements', description: 'Public and internal organization updates. Saving publishes them immediately.', columns: ['title', 'audience', 'published_at'], fields: [field('title', 'Title', 'text', undefined, true), field('body', 'Announcement', 'textarea', undefined, true), field('audience', 'Audience', 'select', ['public', 'staff']), field('published_at', 'Publish date', 'datetime'), field('expires_at', 'Expiry date', 'datetime'), field('cover_image_url', 'Cover image', 'image')] },
+  events: { table: 'events', title: 'Events', description: 'Publish an event with its date, venue, and optional registration details.', columns: ['title', 'event_date', 'location'], fields: [field('title', 'Event title', 'text', undefined, true), field('summary', 'What will happen?', 'textarea', undefined, true), field('starts_at', 'Date and start time', 'datetime', undefined, true), field('ends_at', 'End time', 'datetime'), field('location', 'Venue', 'text', undefined, true), field('cover_image_url', 'Event image', 'image'), field('registration_url', 'Registration link')] },
+  announcements: { table: 'announcements', title: 'Announcements', description: 'Publish a public update on the Events page.', columns: ['title', 'published_at'], fields: [field('title', 'Announcement title', 'text', undefined, true), field('body', 'Announcement', 'textarea', undefined, true), field('cover_image_url', 'Announcement image', 'image')] },
+  advocacy_campaigns: { table: 'advocacy_campaigns', title: 'Advocacy campaigns', description: 'Plan a public learning or awareness campaign with its focus, schedule, venue, and optional image.', columns: ['title', 'focus_area', 'starts_at', 'location'], fields: [field('title', 'Campaign title', 'text', undefined, true), field('focus_area', 'Advocacy focus', 'text', undefined, true), field('summary', 'What will participants learn or do?', 'textarea', undefined, true), field('starts_at', 'Date and start time', 'datetime', undefined, true), field('ends_at', 'Date and end time', 'datetime'), field('location', 'Venue', 'text', undefined, true), field('cover_image_url', 'Campaign image', 'image')] },
   campaign_categories: { table: 'campaign_categories', title: 'Giving area categories', description: 'Categories are entered directly on each giving area.', columns: ['name'], fields: [field('name', 'Name', 'text', undefined, true), field('description', 'Description', 'textarea'), field('icon'), field('sort_order', 'Display order', 'number')] },
   donation_campaigns: { table: 'donation_campaigns', title: 'Giving areas', description: 'Add the category, description, image, wanted and available amounts, currency, dates, and display order. Saving publishes the giving area on the public Donate page immediately.', columns: ['category', 'target_amount', 'raised_amount'], fields: [field('category', 'Category', 'text', undefined, true), field('description', 'Description', 'textarea', undefined, true), field('cover_image_url', 'Image', 'image', undefined, true), field('target_amount', 'Amount wanted', 'number', undefined, true), field('raised_amount', 'Amount available so far', 'number', undefined, true), field('currency_code', 'Currency', 'text', undefined, true), field('starts_at', 'Start date', 'date'), field('ends_at', 'End date', 'date'), field('sort_order', 'Display order', 'number')] },
   contact_details: { table: 'contact_details', title: 'Contact details', description: 'Official contact points displayed on the public website. Saving publishes them immediately.', columns: ['label', 'category', 'value'], fields: [field('label', 'Label', 'text', undefined, true), field('value', 'Value', 'text', undefined, true), field('category', 'Category', 'text', undefined, true), field('sort_order', 'Display order', 'number')] },
@@ -119,14 +122,16 @@ const staffAccountDirectory = [
   { portal: 'Finance', account_email: 'finance@hos.org', role: 'finance', team_members: 'FORGIVENESS Peace Love' },
   { portal: 'Programs / Child Support', account_email: 'programs@hos.org', role: 'program_manager', team_members: 'Tesor RWOGERE; Babra Singana; Uwunkunda Pacifique; Isaro Michaella' },
   { portal: 'Fundraising / Grants', account_email: 'fundraising@hos.org', role: 'fundraiser', team_members: 'Benoit Ntwali Ngabo Teto; Habimana Kaela Naomi; Isingizwe Anita; Queen Merveille; Niyonsuti Don Joel' },
+  { portal: 'Advocacy', account_email: 'events@hos.org', role: 'advocacy_lead', team_members: 'Kelvin Izibyose (Dancer); Uwase Shiffa (MC)' },
 ];
 
 const portalConfig: Record<PortalKind, { icon: typeof LayoutDashboard; tables: AdminTable[]; heading: string; intro: string }> = {
-  content: { icon: BookOpen, tables: ['organizations', 'website_sections', 'team_years', 'team_members', 'programs', 'partner_organizations', 'events', 'announcements', 'galleries', 'contact_details', 'social_links', 'contact_messages', 'newsletter_subscribers'], heading: 'Administration', intro: 'Communications staff manage public website content, while administrators review organization-wide progress.' },
+  content: { icon: BookOpen, tables: ['organizations', 'website_sections', 'team_years', 'team_members', 'programs', 'partner_organizations', 'galleries', 'contact_details', 'social_links', 'contact_messages', 'newsletter_subscribers'], heading: 'Administration', intro: 'Communications staff manage public website content, while administrators review organization-wide progress.' },
   secretariat: { icon: FileText, tables: ['secretariat_documents', 'volunteer_applications', 'volunteers', 'volunteer_assignments', 'partner_organizations', 'newsletter_subscribers', 'contact_messages', 'contact_details', 'social_links'], heading: 'Secretariat', intro: 'Manage volunteer coordination and shared organization contacts assigned to your role.' },
   programs: { icon: HeartHandshake, tables: ['programs'], heading: 'Programs / Child Support', intro: 'Manage child support profiles, milestones, and the programs serving children and families.' },
   finance: { icon: CircleDollarSign, tables: ['donations', 'donors', 'finance_transactions', 'donation_methods', 'grant_opportunities'], heading: 'Finance', intro: 'Manage donor records, giving methods, verified donations, team contributions, income, and expenses.' },
   fundraising: { icon: HeartHandshake, tables: ['donation_campaigns', 'donors', 'donation_methods', 'grant_opportunities'], heading: 'Fundraising / Grants', intro: 'Manage giving areas and grant opportunities, and view finance-managed donor and payment-method records.' },
+  advocacy: { icon: Megaphone, tables: ['events', 'announcements', 'advocacy_campaigns'], heading: 'Advocacy', intro: 'Plan public events, share announcements, and coordinate campaigns that bring people together to learn and take action.' },
 };
 
 const labels: Record<PortalKind, string> = {
@@ -135,6 +140,7 @@ const labels: Record<PortalKind, string> = {
   programs: 'Programs / Child Support',
   finance: 'Finance',
   fundraising: 'Fundraising / Grants',
+  advocacy: 'Advocacy',
 };
 
 const readable = (value: unknown) => {
@@ -405,10 +411,10 @@ function PortalGuide({ portal, roles }: { portal: PortalKind; roles: string[] })
     ? isAdmin
       ? [
           { title: 'Run the workspace', details: 'Use the sidebar to choose a task; the overview summarizes the sections available to your role.', items: ['Open Overview to see your accessible records.', 'Use Staff accounts to change an existing team login.', 'Use Track progress to review live totals and selected audit history.'] },
-          { title: 'Manage public information', details: 'Communications maintains public site content. Admin can review organization-wide progress and account access.', items: ['Keep events, gallery items, partners, and website copy current.', 'Review contact messages and newsletter subscriptions in their shared sections.', 'Saving public content publishes it immediately, so check details before saving.'] },
+          { title: 'Manage public information', details: 'Communications maintains public site content. Admin can review organization-wide progress and account access.', items: ['Keep gallery items, partners, programs, and website copy current.', 'Advocacy manages events, announcements, and public advocacy campaigns.', 'Review contact messages and newsletter subscriptions in their shared sections.'] },
         ]
       : [
-          { title: 'Update the public website', details: 'New and edited public content appears as soon as it saves, so check it before saving.', items: ['Use Gallery, Partners, Events, and Announcements for public updates.', 'Use Programs and Team for the organization information visitors see.', 'Use Contact messages and Newsletter subscribers to follow up with people.'] },
+          { title: 'Update the public website', details: 'New and edited public content appears as soon as it saves, so check it before saving.', items: ['Use Gallery, Partners, Programs, and Team for the organization information visitors see.', 'Advocacy manages Events, Announcements, and Advocacy campaigns.', 'Use Contact messages and Newsletter subscribers to follow up with people.'] },
           { title: 'Keep content consistent', details: 'Changes are shared with other authorized workspaces and refresh on the public site.', items: ['Preview image cards before saving.', 'Check dates, links, descriptions, and image captions.', 'Use Overview to return to the section list.'] },
         ]
     : portal === 'secretariat'
@@ -431,7 +437,12 @@ function PortalGuide({ portal, roles }: { portal: PortalKind; roles: string[] })
               { title: 'Record financial activity', details: 'Keep donations, spending, and team contributions distinguishable and traceable.', items: ['Record verified donations and donors in their sections.', 'Use Finance records for income, expenses, and team contributions.', 'Attach supporting documents where available.'] },
               { title: 'Set the ways to give', details: 'Finance owns the official bank, mobile-money, and other payment instructions.', items: ['Add or update each method once in Donation methods.', 'Saving a method makes it available to visitors immediately.', 'Fundraising areas automatically show these methods when a visitor selects Donate.'] },
             ]
-          : [
+          : portal === 'advocacy'
+            ? [
+                { title: 'Publish events and announcements', details: 'Use Events for scheduled gatherings and Announcements for timely public updates.', items: ['Add a clear title, essential details, date, and venue for an event.', 'Use announcements for short updates that should appear on the Events page.', 'Upload an optional clear image; uploaded images are saved to the public media library.'] },
+                { title: 'Coordinate advocacy campaigns', details: 'Campaigns are learning or awareness activities for groups, separate from donation campaigns and regular events.', items: ['Choose a specific advocacy focus and explain what participants will learn or do.', 'Add the scheduled date, venue, and an optional campaign image.', 'Review the public Events page after publishing; edits and deletions are reflected there.'] },
+              ]
+            : [
               { title: 'Create a giving area', details: 'Add a category, area name, description, photo, wanted and available amounts, currency, dates, and display order.', items: ['Save the form once; the giving area appears on the public Donate page automatically.', 'No separate category record, publishing switch, or payment-method setup is needed.', 'Visitors select Donate on the area to see the methods maintained by Finance.'] },
               { title: 'Manage grants and shared records', details: 'Fundraising owns giving areas and grant opportunities; Finance owns payment methods and donor records.', items: ['Keep grant deadlines and application links current.', 'Review donor and donation-method records maintained by Finance; these are view-only here.', 'Check the public Donate page after saving a giving area.'] },
             ];
@@ -456,8 +467,9 @@ function pageTablesForRole(portal: PortalKind, roles: string[]) {
     team_members: ['communications'],
     programs: ['communications', 'program_manager'],
     partner_organizations: ['communications', 'volunteer_manager'],
-    events: ['communications'],
-    announcements: ['communications'],
+    events: ['advocacy_lead'],
+    announcements: ['advocacy_lead'],
+    advocacy_campaigns: ['advocacy_lead'],
     galleries: ['communications'],
     contact_details: ['communications', 'volunteer_manager'],
     social_links: ['communications', 'volunteer_manager'],
@@ -494,8 +506,9 @@ function getTableConfig(portal: PortalKind, table: AdminTable, roles: string[]):
     team_members: ['communications'],
     programs: ['communications', 'program_manager'],
     partner_organizations: ['communications', 'volunteer_manager'],
-    events: ['communications'],
-    announcements: ['communications'],
+    events: ['advocacy_lead'],
+    announcements: ['advocacy_lead'],
+    advocacy_campaigns: ['advocacy_lead'],
     donation_campaigns: ['fundraiser'],
     galleries: ['communications'],
     contact_details: ['communications', 'volunteer_manager'],
@@ -530,8 +543,7 @@ type AnalyticsPoint = { date: string; label: string; value: number };
 type AnalyticsSlice = { label: string; value: number; color: string };
 
 const communicationTables = [
-  'organizations', 'website_sections', 'team_years', 'team_members', 'programs', 'partner_organizations', 'events',
-  'announcements', 'galleries',
+  'organizations', 'website_sections', 'team_years', 'team_members', 'programs', 'partner_organizations', 'galleries',
   'contact_details', 'social_links',
 ];
 const activityGroups: Array<{ label: string; color: string; tables: string[] }> = [
@@ -540,6 +552,7 @@ const activityGroups: Array<{ label: string; color: string; tables: string[] }> 
   { label: 'Finance', color: '#91c9ce', tables: ['donations', 'finance_transactions'] },
   { label: 'Fundraising', color: '#d99bff', tables: ['donors', 'donation_campaigns', 'grant_opportunities'] },
   { label: 'Secretariat & volunteers', color: '#ff9d73', tables: ['secretariat_documents', 'volunteers', 'volunteer_assignments', 'volunteer_applications'] },
+  { label: 'Advocacy', color: '#e6c14f', tables: ['events', 'announcements', 'advocacy_campaigns'] },
 ];
 const analyticsAnchorTime = Date.now();
 
@@ -770,12 +783,13 @@ function PortalSummary({ portal, tables, onSelect }: { portal: PortalKind; table
 }
 
 const progressGroups: Array<{ key: string; label: string; tables: AdminTable[] }> = [
-  { key: 'communications', label: 'Communications', tables: ['organizations', 'website_sections', 'team_years', 'team_members', 'programs', 'partner_organizations', 'events', 'announcements', 'galleries', 'contact_details', 'social_links', 'contact_messages', 'newsletter_subscribers'] },
+  { key: 'communications', label: 'Communications', tables: ['organizations', 'website_sections', 'team_years', 'team_members', 'programs', 'partner_organizations', 'galleries', 'contact_details', 'social_links', 'contact_messages', 'newsletter_subscribers'] },
   { key: 'secretariat', label: 'Secretariat', tables: ['secretariat_documents'] },
   { key: 'volunteer_management', label: 'Volunteer Management', tables: ['volunteer_applications', 'volunteers', 'volunteer_assignments', 'partner_organizations', 'contact_details', 'social_links', 'contact_messages', 'newsletter_subscribers'] },
   { key: 'finance', label: 'Finance', tables: ['donations', 'donors', 'finance_transactions', 'donation_methods', 'grant_opportunities'] },
   { key: 'programs', label: 'Programs / Child Support', tables: ['programs', 'families', 'children', 'student_support_updates', 'assistance_records'] },
   { key: 'fundraising', label: 'Fundraising / Grants', tables: ['donation_campaigns', 'donors', 'donation_methods', 'grant_opportunities'] },
+  { key: 'advocacy', label: 'Advocacy', tables: ['events', 'announcements', 'advocacy_campaigns'] },
 ];
 
 type PortalProgressMetric = { portal_key: string; table_name: string; record_count: number };
@@ -941,6 +955,7 @@ function StaffAccountsWorkspace() {
   const [selectedAccount, setSelectedAccount] = useState<StaffAccount | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -964,6 +979,7 @@ function StaffAccountsWorkspace() {
     setSelectedAccount(account);
     setEmail(account.email);
     setPassword('');
+    setShowPassword(false);
     setError(null);
     setMessage(null);
   };
@@ -1002,6 +1018,7 @@ function StaffAccountsWorkspace() {
     finance: 'Finance',
     program_manager: 'Programs / Child Support',
     fundraiser: 'Fundraising / Grants',
+    advocacy_lead: 'Advocacy',
   };
   const visibleAccounts = accounts.filter((account) => !account.email.trim().toLocaleLowerCase().endsWith('@hos.example.com'));
 
@@ -1037,7 +1054,7 @@ function StaffAccountsWorkspace() {
         <div className="panel-heading staff-account-editor-heading"><div><h2 id="staff-account-heading">Manage staff account</h2><p id="staff-account-description"><strong>{selectedAccount.email}</strong><br />Leave the password empty to keep it unchanged. Passwords are never revealed.</p></div><button type="button" className="icon-button" onClick={() => setSelectedAccount(null)} disabled={saving} aria-label="Close account editor"><X size={16} /></button></div>
         <form className="form-grid" onSubmit={(event) => void saveAccount(event)}>
           <label className="field"><span className="field-label">Work email</span><input className="input" type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} /></label>
-          <label className="field"><span className="field-label">New password</span><input className="input" type="password" autoComplete="new-password" minLength={12} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="At least 12 characters" /></label>
+          <label className="field"><span className="field-label">New password</span><span className="password-input-wrap"><input className="input" type={showPassword ? 'text' : 'password'} autoComplete="new-password" minLength={12} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="At least 12 characters" /><button className="password-visibility" type="button" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword}>{showPassword ? <EyeOff size={16} /> : <Eye size={16} />}</button></span></label>
           <div className="record-form-actions field-span"><button className="button button-outline" type="button" disabled={saving} onClick={() => setSelectedAccount(null)}>Cancel</button><button className="button button-primary" type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save account changes'} <Check size={14} /></button></div>
         </form>
         {error && <div role="alert" className="form-message error">{error}</div>}
@@ -1161,14 +1178,16 @@ function RecordWorkspace({ config }: { config: TableConfig }) {
       if (config.table === 'finance_transactions' && Number(formData.get('amount')) <= 0) {
         missingFields.amount = 'Enter an amount greater than zero.';
       }
+      if (['events', 'advocacy_campaigns'].includes(config.table)) {
+        const startDate = String(formData.get('starts_at') ?? '');
+        const endDate = String(formData.get('ends_at') ?? '');
+        if (startDate && endDate && endDate < startDate) missingFields.ends_at = 'The end date and time must be on or after the start date and time.';
+      }
       if (config.table === 'donation_campaigns') {
         const wanted = Number(formData.get('target_amount'));
         const available = Number(formData.get('raised_amount'));
         if (!Number.isFinite(wanted) || wanted <= 0) missingFields.target_amount = 'Enter an amount wanted greater than zero.';
         if (!Number.isFinite(available) || available < 0) missingFields.raised_amount = 'Enter an amount available of zero or more.';
-        const startDate = String(formData.get('starts_at') ?? '');
-        const endDate = String(formData.get('ends_at') ?? '');
-        if (startDate && endDate && endDate < startDate) missingFields.ends_at = 'The end date must be on or after the start date.';
       }
       if (Object.keys(missingFields).length) {
         setFieldErrors(missingFields);
@@ -1230,13 +1249,19 @@ function RecordWorkspace({ config }: { config: TableConfig }) {
         partner_organizations: { is_published: true },
         galleries: { is_published: true },
         events: { status: 'published', is_published: true },
-        announcements: { status: 'published', is_published: true },
+        announcements: { status: 'published', is_published: true, audience: 'public' },
+        advocacy_campaigns: { status: 'published' },
         contact_details: { is_public: true },
         social_links: { is_active: true },
         donation_methods: { is_active: true, is_public: true },
         donation_campaigns: { status: 'active', is_published: true },
       };
       Object.assign(values, publishOnSave[config.table]);
+      if (config.table === 'events') {
+        const startsAt = String(values.starts_at ?? '');
+        values.event_date = startsAt ? startsAt.slice(0, 10) : null;
+        values.published_at = typeof editing.published_at === 'string' ? editing.published_at : new Date().toISOString();
+      }
       if (config.table === 'team_members') {
         const avatarPosition = String(formData.get('avatar_object_position') ?? '').trim();
         if (avatarPosition) values.avatar_object_position = avatarPosition;
