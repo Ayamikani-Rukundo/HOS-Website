@@ -22,14 +22,17 @@ import {
   RefreshCw,
   Search,
   Shield,
+  Sun,
   Trash2,
   Users,
   X,
+  Moon,
 } from 'lucide-react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../lib/auth-context';
 import { canAccessRole, getPortalTeam, getPortals, type OrganizationRole, type PortalKind } from '../lib/authorization';
 import { getSupabaseClient } from '../lib/supabase';
+import { useTheme } from '../lib/theme-context';
 import { StudentSupportWorkspace } from './StudentSupportWorkspace';
 import {
   deleteAdminRow,
@@ -281,6 +284,7 @@ function formatStructuredField(key: string, value: unknown) {
 export function WorkspacePage() {
   const { portal: routePortal } = useParams();
   const { user, roles, signOut } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const available = getPortals(roles);
   const portal = routePortal
@@ -347,7 +351,12 @@ export function WorkspacePage() {
             {selectedTable && <button type="button" className="workspace-back-link" onClick={() => setSelectedTable(null)}><ArrowLeft size={14} /> All sections</button>}
             <div className="eyebrow">{labels[portal]}</div><h1>{selectedTable ? configs[selectedTable].title : activeView === 'team' ? 'Team & guide' : activeView === 'accounts' ? 'Staff accounts' : activeView === 'progress' ? 'Track progress' : activeView === 'records' ? 'All records' : activeView === 'students' ? 'Our children' : page.heading}</h1><p>{selectedTable === 'donors' && portal === 'fundraising' ? 'View donor records managed by Finance. You cannot edit or delete donor records here.' : selectedTable === 'grant_opportunities' && portal === 'finance' ? 'View grant opportunities managed by Fundraising. You cannot edit or delete grant records here.' : selectedTable === 'donation_methods' && portal === 'fundraising' ? 'View official giving instructions managed by Finance. You cannot edit or delete these methods here.' : selectedTable ? configs[selectedTable].description : activeView === 'team' ? 'Meet your portal team, then use the quick guide below to complete common tasks.' : activeView === 'accounts' ? 'Manage one account for each team portal.' : activeView === 'progress' ? 'Review live metrics and activity history across the organization.' : activeView === 'records' ? 'Browse completed Secretariat documents.' : activeView === 'students' ? 'Manage child profiles, family context, and support milestones in one place.' : page.intro}</p>
           </div>
-          {!selectedTable && <div className="portal-actions"><span className="pill"><Shield size={13} /> Role-protected</span></div>}
+          <div className="portal-actions">
+            <button type="button" className="button button-outline portal-theme-toggle" onClick={toggleTheme} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}>
+              {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}<span>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>
+            </button>
+            {!selectedTable && <span className="pill"><Shield size={13} /> Role-protected</span>}
+          </div>
         </div>
         {selectedTable
           ? selectedTable === 'staff_accounts'
@@ -519,7 +528,7 @@ const communicationTables = [
   'contact_details', 'social_links',
 ];
 const activityGroups: Array<{ label: string; color: string; tables: string[] }> = [
-  { label: 'Communications', color: '#ffe353', tables: communicationTables },
+  { label: 'Communications', color: 'var(--gold-bright)', tables: communicationTables },
   { label: 'Programs & child support', color: '#70c4a8', tables: ['families', 'children', 'case_records', 'case_notes', 'assistance_records', 'department_updates'] },
   { label: 'Finance', color: '#91c9ce', tables: ['donations', 'finance_transactions'] },
   { label: 'Fundraising', color: '#d99bff', tables: ['donors', 'donation_campaigns', 'grant_opportunities'] },
@@ -612,7 +621,7 @@ function AnalyticsDashboard() {
         <article className="analytics-kpi"><BookOpen size={18} /><span>Communications</span><strong>{loading ? '—' : communicationTotal.toLocaleString()}</strong><small>Website/content records changed</small></article>
       </div>
       <div className="analytics-grid">
-        <AnalyticsLineChart title="Website page views" description="Daily page loads recorded on public pages." points={dailySeries.visits} color="#ffe353" loading={loading} />
+        <AnalyticsLineChart title="Website page views" description="Daily page loads recorded on public pages." points={dailySeries.visits} color="var(--gold-bright)" loading={loading} />
         <AnalyticsLineChart title="Communications work" description="Daily edits to published website and content records." points={dailySeries.communicationChanges} color="#70c4a8" loading={loading} />
         <AnalyticsBarChart title="Communications activity" description="Content areas with recorded changes in the last 30 days." items={communicationBars} loading={loading} />
         <AnalyticsDonutChart title="Recorded work by team" description="Based on which audited data areas were changed; categories follow portal responsibilities." slices={teamSlices} loading={loading} />

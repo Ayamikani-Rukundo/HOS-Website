@@ -1,28 +1,26 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { useLocation } from 'react-router-dom';
 import { ThemeContext, type Theme } from './theme-context';
 
 function getInitialTheme(): Theme {
   try {
-    return localStorage.getItem('hos-theme') === 'light' ? 'light' : 'dark';
+    const savedTheme = localStorage.getItem('hos-theme-v2');
+    return savedTheme === 'dark' ? 'dark' : 'light';
   } catch {
-    return 'dark';
+    return 'light';
   }
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>(getInitialTheme);
-  const { pathname } = useLocation();
-  const activeTheme = pathname === '/' ? 'dark' : theme;
 
   useEffect(() => {
-    document.documentElement.dataset.theme = activeTheme;
+    document.documentElement.dataset.theme = theme;
     try {
-      localStorage.setItem('hos-theme', theme);
+      localStorage.setItem('hos-theme-v2', theme);
     } catch (error) {
       console.warn('Theme preference could not be saved in this browser.', error);
     }
-  }, [activeTheme, theme]);
+  }, [theme]);
 
   const value = useMemo(
     () => ({

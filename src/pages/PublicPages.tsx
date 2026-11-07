@@ -18,9 +18,11 @@ import {
   UsersRound,
   X,
 } from 'lucide-react';
-import { Link, useLocation, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
+import { NewsletterForm } from '../components/NewsletterForm';
 import { siteConfig } from '../data/site';
+import { digestNewsletterToken } from '../lib/newsletter';
 import { getSupabaseClient, isSupabaseConfigured } from '../lib/supabase';
 import { useSiteContent } from '../lib/site-content-context';
 
@@ -106,9 +108,8 @@ function MissionVision({ compact = false }: { compact?: boolean }) {
 
   return (
     <div className={`split-story${compact ? ' compact' : ''}`}>
-      <div className="story-illustration" aria-label="Abstract illustration representing growth and community">
-        <div className="hero-sprig hero-sprig-one" />
-        <HeartHandshake aria-hidden="true" />
+      <div className="story-illustration">
+        <img className="story-illustration-logo" src="/hos-logo.png" alt="Heart of Sympathy — Bridge Them To The Future" />
       </div>
       <div className="story-copy">
         <div className="eyebrow">The reason behind the work</div>
@@ -214,13 +215,6 @@ export function HomePage() {
               <Link className="button button-outline" to="/donate">Ways to give <ArrowUpRight size={14} /></Link>
             </div>
             <div className="hero-note"><MapPin size={15} /> Working with students and families in {organization?.location ?? siteConfig.location}</div>
-          </div>
-          <div className="hero-art" aria-label="Heart of Sympathy logo and abstract nature-inspired design">
-            <div className="hero-art-orbit" />
-            <div className="hero-sprig hero-sprig-one" />
-            <div className="hero-sprig hero-sprig-two" />
-            <div className="hero-logo-card"><img src="/hos-logo.png" alt="Heart of Sympathy — Bridge Them To The Future" /></div>
-            <div className="hero-caption"><Heart size={16} /><span><strong>Our focus</strong>Students and their families</span></div>
           </div>
         </div>
       </section>
@@ -709,70 +703,6 @@ function VolunteerForm() {
   );
 }
 
-async function digestToken(token: string) {
-  const bytes = new TextEncoder().encode(token);
-  const digest = await crypto.subtle.digest('SHA-256', bytes);
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
-}
-
-export function NewsletterForm({ compact = false }: { compact?: boolean }) {
-  const { pathname } = useLocation();
-  const [email, setEmail] = useState('');
-  const [consented, setConsented] = useState(false);
-  const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string; unsubscribeUrl?: string } | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setNotice(null);
-    if (!isSupabaseConfigured) {
-      setNotice({ type: 'error', text: 'Newsletter signup is unavailable until Supabase is configured.' });
-      return;
-    }
-    setBusy(true);
-    try {
-      const token = crypto.randomUUID() + crypto.randomUUID();
-      const tokenHash = await digestToken(token);
-      const { data, error } = await getSupabaseClient().rpc('subscribe_newsletter', {
-        p_email: email.trim().toLowerCase(),
-        p_token_hash: tokenHash,
-        p_source: pathname,
-        p_consented: consented,
-      });
-      if (error) throw error;
-      if (data !== true) throw new Error('The address or subscription details were not accepted.');
-      const unsubscribeUrl = `${window.location.origin}/unsubscribe?token=${encodeURIComponent(token)}`;
-      setNotice({
-        type: 'success',
-        text: 'You are subscribed to HOS email updates. Use the unsubscribe link below any time to remove your email from the list.',
-        unsubscribeUrl,
-      });
-      setEmail('');
-      setConsented(false);
-    } catch (error) {
-      setNotice({ type: 'error', text: error instanceof Error ? `Subscription not saved: ${error.message}` : 'Subscription not saved. Please try again.' });
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className={`newsletter-panel${compact ? ' newsletter-panel-compact' : ''}`}>
-      <div><div className="eyebrow">Email updates</div><h2>{compact ? 'Updates from Heart of Sympathy.' : 'Receive HOS updates by email.'}</h2><p>Sign up for public program, event, and organization updates. Subscriber email addresses are not displayed publicly.</p></div>
-      <div>
-        <form className="newsletter-form" onSubmit={(event) => void handleSubmit(event)}>
-          <div className="inline-form">
-            <input className="input" type="email" required maxLength={254} autoComplete="email" placeholder="Your email address" value={email} onChange={(event) => setEmail(event.target.value)} />
-            <button className="button button-primary" type="submit" disabled={busy || !isSupabaseConfigured}>{busy ? 'Saving…' : 'Subscribe'}</button>
-          </div>
-          <label className="newsletter-consent"><input type="checkbox" required checked={consented} onChange={(event) => setConsented(event.target.checked)} /> I agree to receive occasional public updates from Heart of Sympathy. I can unsubscribe at any time.</label>
-        </form>
-        {notice && <div role={notice.type === 'error' ? 'alert' : 'status'} className={`form-message ${notice.type}`}>{notice.text}{notice.unsubscribeUrl && <p><Link className="text-link" to={`/unsubscribe?token=${encodeURIComponent(new URL(notice.unsubscribeUrl).searchParams.get('token') ?? '')}`}>Unsubscribe this address <ArrowRight size={12} /></Link></p>}</div>}
-      </div>
-    </div>
-  );
-}
-
 export function UnsubscribePage() {
   const [params] = useSearchParams();
   const [result, setResult] = useState<{ error: string | null; done: boolean } | null>(null);
@@ -784,7 +714,7 @@ export function UnsubscribePage() {
     const currentRequest = ++requestId.current;
     void (async () => {
       try {
-        const { data, error } = await getSupabaseClient().rpc('unsubscribe_newsletter', { p_token_hash: await digestToken(token) });
+        const { data, error } = await getSupabaseClient().rpc('unsubscribe_newsletter', { p_token_hash: await digestNewsletterToken(token) });
         if (error) throw error;
         if (requestId.current === currentRequest) setResult({
           error: data === true ? null : 'This unsubscribe link is invalid or has already been used.',

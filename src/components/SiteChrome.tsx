@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowUpRight, ChevronDown, HeartHandshake, Mail, MapPin, Menu, Moon, Sun } from 'lucide-react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
+import { NewsletterForm } from './NewsletterForm';
 import { navItems, siteConfig } from '../data/site';
 import { useAuth } from '../lib/auth-context';
 import { useSiteContent } from '../lib/site-content-context';
@@ -108,8 +109,6 @@ function NavigationLinks({ onNavigate }: { onNavigate?: () => void }) {
 export function SiteHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
   const { theme, toggleTheme } = useTheme();
-  const { pathname } = useLocation();
-  const isHomePage = pathname === '/';
   const { organization, socialLinks } = useSiteContent();
   const { user, roles } = useAuth();
 
@@ -132,11 +131,10 @@ export function SiteHeader() {
           <button
             type="button"
             className="icon-button"
-            aria-label={isHomePage ? 'Dark mode is fixed on the home page' : `Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
+            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
             onClick={toggleTheme}
-            disabled={isHomePage}
           >
-            {isHomePage || theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
           </button>
           <Link to={user && roles.length ? '/workspace' : '/portal'} className="button button-outline">
             {user && roles.length ? 'My workspace' : 'Staff login'}
@@ -217,6 +215,9 @@ export function SiteFooter() {
           </div>
           <Link className="footer-contact-link" to="/contact">Get in touch <ArrowUpRight size={14} /></Link>
         </address>
+        <section className="footer-column footer-newsletter" aria-label="Email updates">
+          <NewsletterForm compact footer />
+        </section>
       </div>
       <div className="footer-bottom">
         <div className="wrap footer-bottom-row">

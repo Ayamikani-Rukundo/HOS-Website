@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { ArrowLeft, ArrowRight, GraduationCap, HeartHandshake, ImageUp, Pencil, Plus, RefreshCw, Search, UsersRound, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, GraduationCap, HeartHandshake, ImageUp, Pencil, Plus, RefreshCw, Search, Trash2, UsersRound, X } from 'lucide-react';
 import { useAuth } from '../lib/auth-context';
 import { listAdminRows, uploadPublicImage } from '../lib/admin-api';
 import { getSupabaseClient } from '../lib/supabase';
@@ -82,6 +82,7 @@ export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
   const [familyDraft, setFamilyDraft] = useState({ primary_contact_name: '', household_code: '', district: '' });
   const [supportDraft, setSupportDraft] = useState<Partial<SupportUpdate>>({});
   const [photo, setPhoto] = useState<File | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     const [childrenResult, familiesResult, profilesResult, updatesResult, assistanceResult] = await Promise.all([
@@ -120,6 +121,7 @@ export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
 
   const selectedStudent = students.find((student) => student.id === selectedId) ?? null;
   const selectedProfile = profiles.find((profile) => profile.child_id === selectedId) ?? null;
+  const confirmingStudent = students.find((student) => student.id === confirmDeleteId) ?? null;
   const filteredStudents = useMemo(() => {
     const term = search.trim().toLocaleLowerCase();
     return students.filter((student) => `${student.first_name} ${student.last_name ?? ''} ${student.child_code ?? ''} ${student.school_name ?? ''}`.toLocaleLowerCase().includes(term));
@@ -362,6 +364,45 @@ export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
     setIsSaving(false);
   };
 
+  const deleteStudent = async (student: Student) => {
+    setIsSaving(true);
+    setError(null);
+    const profilePhotoUrl = profiles.find((profile) => profile.child_id === student.id)?.profile_photo_url;
+    try {
+      const { error: deleteError } = await client.from('children').delete().eq('id', student.id);
+      if (deleteError) throw new Error(`Student could not be deleted: ${deleteError.message}`);
+
+      setStudents((current) => current.filter((item) => item.id !== student.id));
+      setProfiles((current) => current.filter((profile) => profile.child_id !== student.id));
+      setUpdates((current) => current.filter((update) => update.child_id !== student.id));
+      setAssistance((current) => current.map((item) => item.child_id === student.id ? { ...item, child_id: null } : item));
+      setSelectedId((current) => current === student.id ? null : current);
+      setConfirmDeleteId(null);
+
+      let cleanupWarning: string | null = null;
+      if (profilePhotoUrl) {
+        try {
+          await removePublicPhoto(client, profilePhotoUrl);
+        } catch (cleanupError) {
+          cleanupWarning = `Student deleted, but their public photo could not be removed: ${getErrorMessage(cleanupError)}`;
+        }
+      }
+
+      try {
+        await refresh();
+      } catch (refreshError) {
+        cleanupWarning = [cleanupWarning, `Student deleted, but the list could not be refreshed: ${getErrorMessage(refreshError)}`]
+          .filter(Boolean)
+          .join(' ');
+      }
+      if (cleanupWarning) setError(cleanupWarning);
+    } catch (deleteError) {
+      setError(getErrorMessage(deleteError));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <section className="student-workspace">
       {selectedStudent ? (
@@ -409,14 +450,44 @@ export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
             : filteredStudents.length ? <div className="student-staff-grid">{filteredStudents.map((student) => {
               const profile = profiles.find((entry) => entry.child_id === student.id);
               const count = updates.filter((item) => item.child_id === student.id).length + assistance.filter((item) => item.child_id === student.id).length;
-              return <button className="student-staff-card" type="button" key={student.id} onClick={() => setSelectedId(student.id)}>
-                <span className="student-staff-avatar">{profile?.profile_photo_url ? <img src={profile.profile_photo_url} alt="" /> : <UsersRound size={25} />}</span>
-                <span className="student-staff-card-copy"><strong>{student.first_name} {student.last_name}</strong><span>{student.child_code || 'No code'} · {student.school_name || 'School not recorded'}</span><small>{count} support record{count === 1 ? '' : 's'} · {profile?.is_published ? 'Profile public' : 'Private profile'}</small></span><ArrowRight size={17} />
-              </button>;
+              const studentName = `${student.first_name} ${student.last_name ?? ''}`.trim();
+              return <div className="student-staff-card-row" key={student.id}>
+                <button className="student-staff-card" type="button" onClick={() => setSelectedId(student.id)}>
+                  <span className="student-staff-avatar">{profile?.profile_photo_url ? <img src={profile.profile_photo_url} alt="" /> : <UsersRound size={25} />}</span>
+                  <span className="student-staff-card-copy"><strong>{studentName}</strong><span>{student.child_code || 'No code'} · {student.school_name || 'School not recorded'}</span><small>{count} support record{count === 1 ? '' : 's'} · {profile?.is_published ? 'Profile public' : 'Private profile'}</small></span><ArrowRight size={17} />
+                </button>
+                <div className="student-staff-card-actions">
+                  <button
+                    className="button button-danger button-small student-card-delete-trigger"
+                    type="button"
+                    aria-label={`Delete ${studentName}`}
+                    title={`Delete ${studentName}`}
+                    disabled={isSaving}
+                    onClick={() => setConfirmDeleteId(student.id)}
+                  >
+                    <Trash2 size={13} /> Delete
+                  </button>
+                </div>
+              </div>;
             })}</div>
               : <div className="student-empty-state"><GraduationCap size={26} /><h3>{students.length ? 'No students match your search' : 'Start with a student record'}</h3><p>{students.length ? 'Try another name, student code, or school.' : 'Add a student to create a secure profile and record their support over time.'}</p>{!students.length && <button className="button button-primary" type="button" onClick={() => openStudentForm()}><Plus size={15} /> Add first student</button>}</div>}
         </>
       )}
+
+      {confirmingStudent && !selectedStudent && <div className="modal-backdrop confirm-action-backdrop student-delete-backdrop" role="presentation" onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !isSaving) setConfirmDeleteId(null);
+      }}>
+        <section className="modal confirm-action-dialog student-delete-dialog" role="alertdialog" aria-modal="true" aria-labelledby="student-delete-title" aria-describedby="student-delete-message">
+          <div className="modal-header"><h2 id="student-delete-title">Delete {confirmingStudent.first_name} {confirmingStudent.last_name}?</h2><button className="icon-button" type="button" disabled={isSaving} onClick={() => setConfirmDeleteId(null)} aria-label="Close confirmation"><X size={16} /></button></div>
+          <div className="modal-body">
+            <p id="student-delete-message">This permanently deletes the student, public profile, and support milestones. The family record stays; assistance and case history are kept but unlinked.</p>
+            <div className="record-form-actions">
+              <button type="button" className="button button-outline" disabled={isSaving} onClick={() => setConfirmDeleteId(null)}>Cancel</button>
+              <button type="button" className="button button-danger" disabled={isSaving} onClick={() => void deleteStudent(confirmingStudent)}>{isSaving ? 'Deleting…' : 'Delete student'}</button>
+            </div>
+          </div>
+        </section>
+      </div>}
 
       {modal && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeModal(); }}>
         <div className="modal modal-wide student-workspace-modal" role="dialog" aria-modal="true" aria-labelledby="student-modal-title">
