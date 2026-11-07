@@ -6,10 +6,10 @@ export type NavItem = {
 export const siteConfig = {
   name: 'Heart of Sympathy',
   tagline: 'Bridge Them To The Future',
-  location: 'Kigali, Rwanda',
+  location: 'Rwanda',
   founded: '2023',
   mission:
-    'Heart of Sympathy supports students and families in Kigali through education, nutrition, health, mentorship, and practical family assistance.',
+    'Heart of Sympathy supports students and families across Rwanda, with a strong impact in Kigali, through education, nutrition, health, mentorship, and practical family assistance.',
 };
 
 export const navItems: NavItem[] = [

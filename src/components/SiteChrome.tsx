@@ -166,7 +166,7 @@ export function SiteFooter() {
     <footer className="site-footer">
       <div className="wrap footer-cta">
         <div className="footer-cta-copy">
-          <div className="eyebrow">Heart of Sympathy · Kigali</div>
+          <div className="eyebrow">Heart of Sympathy · Rwanda</div>
           <h2>Support students through education and family care.</h2>
           <p>{organization?.mission ?? siteConfig.mission}</p>
         </div>
@@ -184,7 +184,7 @@ export function SiteFooter() {
               <span className="brand-tagline">{organization?.tagline ?? siteConfig.tagline}</span>
             </span>
           </Link>
-          <p className="footer-about">Youth-led student and family support in Kigali, Rwanda.</p>
+          <p className="footer-about">Youth-led student and family support across Rwanda, with a strong impact in Kigali.</p>
           {socialLinks.length > 0 && (
             <div className="footer-socials" aria-label="Social media">
               {socialLinks.map((social) => <a key={social.id} href={social.url} target="_blank" rel="noreferrer">{social.platform}<ArrowUpRight size={12} /></a>)}
@@ -222,7 +222,7 @@ export function SiteFooter() {
       <div className="footer-bottom">
         <div className="wrap footer-bottom-row">
           <span>© {currentYear} {organization?.name ?? siteConfig.name}</span>
-          <span>Education · Nutrition · Health · Mentorship · Family support · Kigali, Rwanda</span>
+          <span>Education · Nutrition · Health · Mentorship · Family support · Across Rwanda, strong impact in Kigali</span>
         </div>
       </div>
     </footer>
