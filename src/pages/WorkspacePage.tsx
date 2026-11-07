@@ -34,6 +34,7 @@ import { canAccessRole, getPortalTeam, getPortals, type OrganizationRole, type P
 import { getSupabaseClient } from '../lib/supabase';
 import { useTheme } from '../lib/theme-context';
 import { StudentSupportWorkspace } from './StudentSupportWorkspace';
+import { SecretariatDocumentsWorkspace } from './SecretariatDocumentsWorkspace';
 import {
   deleteAdminRow,
   loadAdminAnalytics,
@@ -292,7 +293,7 @@ export function WorkspacePage() {
     : available[0];
   const [selection, setSelection] = useState<{ portal: PortalKind; table: AdminTable } | null>(null);
   const selectedTable = portal && selection?.portal === portal ? selection.table : null;
-  const [activeView, setActiveView] = useState<'overview' | 'team' | 'records' | 'students' | 'accounts' | 'progress'>('overview');
+  const [activeView, setActiveView] = useState<'overview' | 'team' | 'uploaded' | 'students' | 'accounts' | 'progress'>('overview');
   const [signOutError, setSignOutError] = useState<string | null>(null);
   const canManagePartners = canAccessRole(roles, ['communications', 'volunteer_manager']);
   const canManageGallery = canAccessRole(roles, ['communications']);
@@ -334,7 +335,7 @@ export function WorkspacePage() {
           {canManageGallery && <button className={`portal-nav-link${selectedTable === 'galleries' ? ' active' : ''}`} type="button" onClick={() => { setActiveView('overview'); setSelectedTable('galleries'); }}><ImageUp /><span>Gallery</span></button>}
           {canManagePartners && <button className={`portal-nav-link${selectedTable === 'partner_organizations' ? ' active' : ''}`} type="button" onClick={() => { setActiveView('overview'); setSelectedTable('partner_organizations'); }}><HeartHandshake /><span>Partners</span></button>}
           {['finance', 'fundraising'].includes(portal) && canAccessRole(roles, ['finance', 'fundraiser']) && <button className={`portal-nav-link${selectedTable === 'donation_methods' ? ' active' : ''}`} type="button" onClick={() => { setActiveView('overview'); setSelectedTable('donation_methods'); }}><CircleDollarSign /><span>Donation methods</span></button>}
-          {portal === 'secretariat' && canAccessRole(roles, ['secretariat']) && <button className={`portal-nav-link${selectedTable === null && activeView === 'records' ? ' active' : ''}`} type="button" onClick={() => { setSelection(null); setActiveView('records'); }}><FileText /><span>All records</span></button>}
+          {portal === 'secretariat' && canAccessRole(roles, ['secretariat']) && <button className={`portal-nav-link${selectedTable === null && activeView === 'uploaded' ? ' active' : ''}`} type="button" onClick={() => { setSelection(null); setActiveView('uploaded'); }}><FileText /><span>Uploaded docs</span></button>}
           {portal === 'content' && isAdmin && <button className={`portal-nav-link${selectedTable === null && activeView === 'accounts' ? ' active' : ''}`} type="button" onClick={() => { setSelection(null); setActiveView('accounts'); }}><Users /><span>Staff accounts</span></button>}
           {portal === 'content' && isAdmin && <button className={`portal-nav-link${selectedTable === null && activeView === 'progress' ? ' active' : ''}`} type="button" onClick={() => { setSelection(null); setActiveView('progress'); }}><Activity /><span>Track progress</span></button>}
         </nav>
@@ -349,7 +350,7 @@ export function WorkspacePage() {
         <div className="portal-topbar">
           <div>
             {selectedTable && <button type="button" className="workspace-back-link" onClick={() => setSelectedTable(null)}><ArrowLeft size={14} /> All sections</button>}
-            <div className="eyebrow">{labels[portal]}</div><h1>{selectedTable ? configs[selectedTable].title : activeView === 'team' ? 'Team & guide' : activeView === 'accounts' ? 'Staff accounts' : activeView === 'progress' ? 'Track progress' : activeView === 'records' ? 'All records' : activeView === 'students' ? 'Our children' : page.heading}</h1><p>{selectedTable === 'donors' && portal === 'fundraising' ? 'View donor records managed by Finance. You cannot edit or delete donor records here.' : selectedTable === 'grant_opportunities' && portal === 'finance' ? 'View grant opportunities managed by Fundraising. You cannot edit or delete grant records here.' : selectedTable === 'donation_methods' && portal === 'fundraising' ? 'View official giving instructions managed by Finance. You cannot edit or delete these methods here.' : selectedTable ? configs[selectedTable].description : activeView === 'team' ? 'Meet your portal team, then use the quick guide below to complete common tasks.' : activeView === 'accounts' ? 'Manage one account for each team portal.' : activeView === 'progress' ? 'Review live metrics and activity history across the organization.' : activeView === 'records' ? 'Browse completed Secretariat documents.' : activeView === 'students' ? 'Manage child profiles, family context, and support milestones in one place.' : page.intro}</p>
+            <div className="eyebrow">{labels[portal]}</div><h1>{selectedTable ? configs[selectedTable].title : activeView === 'team' ? 'Team & guide' : activeView === 'accounts' ? 'Staff accounts' : activeView === 'progress' ? 'Track progress' : activeView === 'uploaded' ? 'Uploaded docs' : activeView === 'students' ? 'Our children' : page.heading}</h1><p>{selectedTable === 'donors' && portal === 'fundraising' ? 'View donor records managed by Finance. You cannot edit or delete donor records here.' : selectedTable === 'grant_opportunities' && portal === 'finance' ? 'View grant opportunities managed by Fundraising. You cannot edit or delete grant records here.' : selectedTable === 'donation_methods' && portal === 'fundraising' ? 'View official giving instructions managed by Finance. You cannot edit or delete these methods here.' : selectedTable ? configs[selectedTable].description : activeView === 'team' ? 'Meet your portal team, then use the quick guide below to complete common tasks.' : activeView === 'accounts' ? 'Manage one account for each team portal.' : activeView === 'progress' ? 'Review live metrics and activity history across the organization.' : activeView === 'uploaded' ? 'Browse and manage completed records uploaded to secure storage.' : activeView === 'students' ? 'Manage child profiles, family context, and support milestones in one place.' : portal === 'secretariat' ? 'Create and manage internal Secretariat documents and meeting minutes.' : page.intro}</p>
           </div>
           <div className="portal-actions">
             <button type="button" className="button button-outline portal-theme-toggle" onClick={toggleTheme} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}>
@@ -370,9 +371,11 @@ export function WorkspacePage() {
               ? <AdminProgressWorkspace />
             : activeView === 'team'
               ? <><PortalTeam team={getPortalTeam(portal, roles)} /><PortalGuide portal={portal} roles={roles} /></>
-            : activeView === 'records'
-              ? <SecretariatRecordsWorkspace />
-              : <PortalOverview portal={portal} tables={visibleTables} onSelect={setSelectedTable} />}
+            : portal === 'secretariat' && activeView === 'uploaded'
+              ? <SecretariatDocumentsWorkspace key="uploaded" mode="uploads" />
+              : portal === 'secretariat'
+                ? <SecretariatDocumentsWorkspace key="documents" mode="documents" />
+                : <PortalOverview portal={portal} tables={visibleTables} onSelect={setSelectedTable} />}
       </main>
     </div>
   );
@@ -411,8 +414,8 @@ function PortalGuide({ portal, roles }: { portal: PortalKind; roles: string[] })
             { title: 'Work with shared records', details: 'Updates made here are visible to other authorized teams.', items: ['Check existing entries before adding a new one.', 'Use search and preview cards to find records quickly.', 'Confirm a change saved before moving to another section.'] },
           ]
         : [
-            { title: 'Maintain official records', details: 'Use All records to file documents already completed by the organization.', items: ['Add a clear title, document type, and completion date.', 'Attach the completed document or provide its stored reference.', 'Search the list before adding a duplicate.'] },
-            { title: 'Find shared information', details: 'Other sections are shared with teams that have permission to maintain them.', items: ['Use Overview to open records available to your account.', 'Review existing entries before creating another.', 'Use the sidebar to return to All records.'] },
+              { title: 'Create Secretariat documents', details: 'Use Overview to create and maintain meeting minutes, memos, and reports.', items: ['Select New document to open the full-page editor.', 'Set the document type, date, and time, then format the content.', 'Save to return to the dated document previews.'] },
+              { title: 'Store completed records', details: 'Use Uploaded docs for files that already exist outside the workspace.', items: ['Upload PDF, Word, TXT, or RTF files with a clear title and date.', 'Open files from their private storage links.', 'Edit the record details or delete the document and its stored files.'] },
           ]
       : portal === 'programs'
         ? [
@@ -1016,10 +1019,6 @@ function StaffAccountsWorkspace() {
   );
 }
 
-function SecretariatRecordsWorkspace() {
-  return <RecordWorkspace config={getTableConfig('secretariat', 'secretariat_documents', ['secretariat'])} />;
-}
-
 function RecordWorkspace({ config }: { config: TableConfig }) {
   const [rows, setRows] = useState<DataRow[]>([]);
   const [search, setSearch] = useState('');
@@ -1547,10 +1546,21 @@ function FieldEditor({ field: item, value, folder, isNew, error }: { field: Fiel
         const { data: userData, error: userError } = await client.auth.getUser();
         if (userError || !userData.user) throw new Error('Your session expired. Sign in again before uploading files.');
         const uploaded = await Promise.all(files.map(async (file): Promise<DocumentAttachment> => {
+          const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
+          const contentTypes: Record<string, string[]> = {
+            pdf: ['application/pdf'],
+            doc: ['application/msword'],
+            docx: ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+            txt: ['text/plain'],
+            rtf: ['application/rtf', 'application/x-rtf', 'text/rtf'],
+          };
+          if (!contentTypes[extension] || (file.type && !contentTypes[extension].includes(file.type))) {
+            throw new Error(`${file.name} is not supported. Choose PDF, DOC/DOCX, TXT, or RTF.`);
+          }
           if (file.size > 20 * 1024 * 1024) throw new Error(`${file.name} is larger than the 20 MB limit.`);
           const path = `${userData.user.id}/${crypto.randomUUID()}-${file.name.replace(/[^\w.-]/g, '_')}`;
           const { error: storageError } = await client.storage.from('secretariat-documents').upload(path, file, {
-            contentType: file.type || 'application/octet-stream',
+            contentType: file.type || contentTypes[extension][0],
             upsert: false,
           });
           if (storageError) throw new Error(`Could not upload ${file.name}: ${storageError.message}`);
@@ -1567,8 +1577,8 @@ function FieldEditor({ field: item, value, folder, isNew, error }: { field: Fiel
       <span className="field-label">{item.label}</span>
       <input type="hidden" name={item.key} value={JSON.stringify({ text: documentText, attachments: documentFiles })} data-uploading={uploading ? 'true' : 'false'} />
       <label className="field"><span className="field-label">Record notes</span><textarea className="textarea" rows={5} value={documentText} onChange={(event) => setDocumentText(event.target.value)} placeholder="Notes about this completed record (optional)" /></label>
-      <label className="image-upload-button"><FileUp size={16} /> {uploading ? 'Uploading files…' : 'Attach completed document(s)'}<input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.jpg,.jpeg,.png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,image/jpeg,image/png" multiple onChange={(event) => void handleFiles(event)} disabled={uploading} /></label>
-      <span className="field-hint">Private storage · PDF, Word, Excel, text or image files · maximum 20 MB each.</span>
+      <label className="image-upload-button"><FileUp size={16} /> {uploading ? 'Uploading files…' : 'Attach completed document(s)'}<input type="file" accept=".pdf,.doc,.docx,.txt,.rtf,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,application/rtf,application/x-rtf,text/rtf" multiple onChange={(event) => void handleFiles(event)} disabled={uploading} /></label>
+      <span className="field-hint">Private storage · PDF, DOC/DOCX, TXT, or RTF · maximum 20 MB each.</span>
       {documentFiles.length > 0 && <ul className="document-attachment-list">{documentFiles.map((attachment) => <li key={attachment.path}><FileText size={14} /><span>{attachment.name}</span><button type="button" className="button button-outline button-small" onClick={() => setDocumentFiles((current) => current.filter((file) => file.path !== attachment.path))}>Remove</button></li>)}</ul>}
       {error && <span id={`field-error-${item.key}`} role="alert" className="field-error">{error}</span>}
       {uploadError && <span role="alert" className="field-error">{uploadError}</span>}

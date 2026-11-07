@@ -1,5 +1,6 @@
 -- Run after applying the project's Supabase migrations, including
--- 20261106080000_live_admin_progress.sql.
+-- 20261106080000_live_admin_progress.sql and
+-- 20261107200000_secretariat_document_formats.sql.
 -- These checks are read-only and do not display contact, child, donor, or case data.
 
 with expected_tables(table_name) as (
@@ -60,7 +61,25 @@ select
 union all
 select
   'hos-private',
-  exists(select 1 from storage.buckets where id = 'hos-private' and not public);
+  exists(select 1 from storage.buckets where id = 'hos-private' and not public)
+union all
+select
+  'secretariat-documents',
+  exists(
+    select 1
+    from storage.buckets
+    where id = 'secretariat-documents'
+      and not public
+      and allowed_mime_types @> array[
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'text/plain',
+        'application/rtf',
+        'application/x-rtf',
+        'text/rtf'
+      ]
+  );
 
 select
   'public organization record' as check_name,
