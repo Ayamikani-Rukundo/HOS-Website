@@ -632,6 +632,36 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 :root[data-theme] .home-site .hero-note { color: #fff; }
 :root[data-theme] .home-site .hero-actions .button-outline,
 :root[data-theme] .home-site .hero-actions .button-outline:hover { border-color: var(--gold-fill); background: var(--gold-fill); color: #20271e; }
+.secretariat-document-open { display: grid; width: 100%; min-width: 0; gap: 9px; padding: 0; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.secretariat-document-card:has(.secretariat-document-open:hover),
+.secretariat-document-card:has(.secretariat-document-open:focus-visible) { border-color: var(--gold); box-shadow: 0 8px 24px rgba(0, 0, 0, .13); }
+.secretariat-document-open:focus-visible { outline: none; }
+.secretariat-document-card-content { display: grid; gap: 3px; }
+.secretariat-document-card-content strong { overflow: hidden; font-family: var(--serif); font-size: .9rem; text-overflow: ellipsis; white-space: nowrap; }
+.secretariat-document-card-content > span { color: var(--muted); font-size: .64rem; }
+.secretariat-document-open-hint { display: inline-flex; align-items: center; gap: 5px; color: var(--gold-bright); font: 600 .65rem 'DM Sans', sans-serif; }
+.secretariat-paper-content { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 6; overflow: hidden; white-space: pre-wrap; }
+.secretariat-preview-backdrop { z-index: 110; }
+.secretariat-document-modal { width: min(100%, 900px); max-height: min(92vh, 1050px); }
+.secretariat-preview-header { align-items: flex-start; }
+.secretariat-preview-heading { min-width: 0; }
+.secretariat-preview-heading h2 { margin: 4px 0 6px; overflow-wrap: anywhere; font-size: clamp(1.35rem, 3vw, 2rem); }
+.secretariat-preview-heading p { margin: 0; color: var(--muted); font-size: .75rem; line-height: 1.5; }
+.secretariat-preview-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; }
+.secretariat-document-preview-body { display: grid; gap: 16px; padding: clamp(16px, 3vw, 30px); }
+.secretariat-document-rich-content { min-height: 300px; padding: clamp(20px, 4vw, 42px); border: 1px solid rgba(32, 54, 43, .14); border-radius: 5px; background: #fff; box-shadow: 0 3px 12px rgba(0, 0, 0, .08); color: #27382f; font: 16px/1.75 Cambria, Georgia, serif; overflow-wrap: anywhere; }
+.secretariat-document-rich-content p { margin: 0 0 12px; }
+.secretariat-document-rich-content h2, .secretariat-document-rich-content h3 { margin: 22px 0 10px; color: #27382f; }
+.secretariat-document-rich-content ul, .secretariat-document-rich-content ol { padding-left: 26px; }
+.secretariat-document-preview-body > h3 { margin: 0; font-size: 1rem; }
+.secretariat-upload-description { margin: 0; color: var(--ink-soft); line-height: 1.7; white-space: pre-wrap; }
+.secretariat-preview-attachments { display: grid; justify-items: start; gap: 8px; }
+.secretariat-preview-attachments .button { max-width: 100%; overflow-wrap: anywhere; }
+@media (max-width: 620px) {
+  .secretariat-preview-header { flex-direction: column; }
+  .secretariat-preview-actions { width: 100%; justify-content: flex-end; }
+  .secretariat-document-rich-content { min-height: 220px; font-size: .92rem; }
+}
 .home-site .hero-copy h1,
 .home-site .hero-copy h1 em,
 .home-site .hero-copy p { color: #fff; font-weight: 700; text-shadow: 0 2px 8px rgba(0, 0, 0, .9); }

@@ -5,6 +5,8 @@ import {
   CalendarDays,
   Check,
   Clock3,
+  Download,
+  Eye,
   FileText,
   FileUp,
   Italic,
@@ -13,6 +15,7 @@ import {
   Plus,
   Trash2,
   Underline,
+  X,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth-context';
 import { deleteAdminRow, listAdminRows, saveAdminRow, type DataRow } from '../lib/admin-api';
@@ -164,6 +167,7 @@ export function SecretariatDocumentsWorkspace({ mode }: { mode: DocumentMode }) 
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState<'list' | 'editor' | 'upload'>('list');
   const [editing, setEditing] = useState<DataRow | null>(null);
+  const [previewDocument, setPreviewDocument] = useState<DataRow | null>(null);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -178,6 +182,20 @@ export function SecretariatDocumentsWorkspace({ mode }: { mode: DocumentMode }) 
   }, []);
 
   useEffect(() => { void Promise.resolve().then(refresh); }, [refresh]);
+
+  useEffect(() => {
+    if (!previewDocument) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setPreviewDocument(null);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [previewDocument]);
 
   const visibleRows = useMemo(() => sortedByDate(rows.filter((row) => mode === 'uploads' ? isUploadedDocument(row) : !isUploadedDocument(row))), [mode, rows]);
 
@@ -224,6 +242,37 @@ export function SecretariatDocumentsWorkspace({ mode }: { mode: DocumentMode }) 
     }
   };
 
+  const downloadPdf = (row: DataRow) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      setError('The PDF window was blocked. Allow pop-ups for this site and try again.');
+      return;
+    }
+    const body = documentBody(row);
+    const title = String(row.title ?? 'Secretariat document');
+    const metadata = [
+      typeLabel(row.document_type),
+      `Document date: ${formattedDate(dateValueForRow(row))}`,
+      body.meeting_time ? `Time: ${body.meeting_time}` : null,
+      `Created: ${formattedCreatedDate(row.created_at)}`,
+    ].filter(Boolean).join(' · ');
+    printWindow.document.open();
+    printWindow.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>
+      @page{size:auto;margin:22mm 20mm}
+      *{box-sizing:border-box}
+      body{max-width:760px;margin:36px auto;padding:0 24px;color:#24342d;font:15px/1.7 Cambria,Georgia,serif}
+      h1{margin:0 0 10px;color:#173a36;font:700 28px/1.2 Cambria,Georgia,serif}
+      .meta{margin:0 0 25px;padding-bottom:14px;border-bottom:1px solid #cbd6d0;color:#526960;font:12px/1.6 Arial,sans-serif}
+      main{overflow-wrap:anywhere}p{margin:0 0 12px}h2,h3{margin:20px 0 8px;line-height:1.3}
+      ul,ol{padding-left:24px}blockquote{margin:14px 0;padding-left:14px;border-left:3px solid #8a6b1b;color:#526960}
+      hr{border:0;border-top:1px solid #cbd6d0}
+      @media print{body{margin:0 auto;padding:0}h1,h2,h3{break-after:avoid}}
+    </style></head><body><h1>${escapeHtml(title)}</h1><p class="meta">${escapeHtml(metadata)}</p><main>${documentHtml(row) || '<p>No document content.</p>'}</main></body></html>`);
+    printWindow.document.close();
+    printWindow.focus();
+    window.setTimeout(() => printWindow.print(), 250);
+  };
+
   const completeSave = async (message?: string) => {
     setLoading(true);
     await refresh();
@@ -263,15 +312,17 @@ export function SecretariatDocumentsWorkspace({ mode }: { mode: DocumentMode }) 
             const id = String(row.id ?? '');
             const attachments = documentAttachments(row);
             return <article className="secretariat-document-card" key={id}>
-              <div className="secretariat-document-card-meta"><span className="pill pill-gold">{typeLabel(row.document_type)}</span><time dateTime={String(row.meeting_date ?? row.created_at ?? '')}>{formattedDate(dateValueForRow(row))}</time></div>
-              <div className="secretariat-paper-preview">
-                {isUploadsPage
-                  ? <div className="secretariat-file-preview"><FileText size={25} /><strong>{attachments[0]?.name ?? 'Uploaded record'}</strong><span>{attachments.length > 1 ? `+ ${attachments.length - 1} more file${attachments.length === 2 ? '' : 's'}` : 'Private file'}</span></div>
-                  : <div className="secretariat-paper-content" dangerouslySetInnerHTML={{ __html: documentHtml(row) || '<p>Start writing your document…</p>' }} />}
-              </div>
-              <div className="secretariat-document-card-content"><h2>{String(row.title ?? 'Untitled document')}</h2><p>Created {formattedCreatedDate(row.created_at)}{documentBody(row).meeting_time ? ` · ${String(documentBody(row).meeting_time)}` : ''}</p>
-                {isUploadsPage && attachments.length > 0 && <div className="secretariat-attachment-actions">{attachments.map((attachment) => <button key={attachment.path} type="button" className="text-button" onClick={() => void openAttachment(attachment)}>{attachment.name}</button>)}</div>}
-              </div>
+              <button type="button" className="secretariat-document-open" aria-label={`Preview ${String(row.title ?? 'document')}`} onClick={() => { setError(null); setPreviewDocument(row); }}>
+                <span className="secretariat-document-card-meta"><span className="pill pill-gold">{typeLabel(row.document_type)}</span><time dateTime={String(row.meeting_date ?? row.created_at ?? '')}>{formattedDate(dateValueForRow(row))}</time></span>
+                <span className="secretariat-paper-preview">
+                  {isUploadsPage
+                    ? <span className="secretariat-file-preview"><FileText size={25} /><strong>{attachments[0]?.name ?? 'Uploaded record'}</strong><span>{attachments.length > 1 ? `+ ${attachments.length - 1} more file${attachments.length === 2 ? '' : 's'}` : 'Private file'}</span></span>
+                    : <span className="secretariat-paper-content">{documentPlainText(documentHtml(row)) || 'Start writing your document…'}</span>}
+                </span>
+                <span className="secretariat-document-card-content"><strong>{String(row.title ?? 'Untitled document')}</strong><span>Created {formattedCreatedDate(row.created_at)}{documentBody(row).meeting_time ? ` · ${String(documentBody(row).meeting_time)}` : ''}</span></span>
+                <span className="secretariat-document-open-hint"><Eye size={13} /> Click to preview</span>
+              </button>
+              {isUploadsPage && attachments.length > 0 && <div className="secretariat-attachment-actions">{attachments.map((attachment) => <button key={attachment.path} type="button" className="text-button" onClick={() => void openAttachment(attachment)}>{attachment.name}</button>)}</div>}
               <div className="secretariat-document-actions">
                 <button type="button" className="button button-outline button-small" disabled={busy} onClick={() => { setEditing(row); setPage(isUploadsPage ? 'upload' : 'editor'); }}><Pencil size={13} /> Edit</button>
                 <button type="button" className="button button-danger button-small" disabled={busy} onClick={() => setConfirmingId(confirmingId === id ? null : id)}><Trash2 size={13} /> Delete</button>
@@ -279,6 +330,25 @@ export function SecretariatDocumentsWorkspace({ mode }: { mode: DocumentMode }) 
               {confirmingId === id && <div className="secretariat-delete-confirm" role="group" aria-label={`Confirm delete ${String(row.title ?? 'document')}`}><span>Delete this document{attachments.length ? ' and its files' : ''} permanently?</span><button type="button" className="button button-danger button-small" disabled={busy} onClick={() => void removeDocument(row)}>{busy ? 'Deleting…' : 'Confirm delete'}</button><button type="button" className="button button-outline button-small" disabled={busy} onClick={() => setConfirmingId(null)}>Cancel</button></div>}
             </article>;
           })}</div>}
+      {previewDocument && <div className="modal-backdrop secretariat-preview-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setPreviewDocument(null); }}>
+        <section className="modal secretariat-document-modal" role="dialog" aria-modal="true" aria-labelledby="secretariat-preview-title">
+          <header className="modal-header secretariat-preview-header">
+            <div className="secretariat-preview-heading"><span className="eyebrow">{typeLabel(previewDocument.document_type)}</span><h2 id="secretariat-preview-title">{String(previewDocument.title ?? 'Untitled document')}</h2><p>{formattedDate(dateValueForRow(previewDocument))}{documentBody(previewDocument).meeting_time ? ` · ${String(documentBody(previewDocument).meeting_time)}` : ''} · Created {formattedCreatedDate(previewDocument.created_at)}</p></div>
+            <div className="secretariat-preview-actions">
+              {!isUploadedDocument(previewDocument) && <button type="button" className="button button-primary button-small" onClick={() => downloadPdf(previewDocument)}><Download size={14} /> Download PDF</button>}
+              <button type="button" className="icon-button" aria-label="Close document preview" onClick={() => setPreviewDocument(null)}><X size={17} /></button>
+            </div>
+          </header>
+          <div className="secretariat-document-preview-body">
+            {error && <div role="alert" className="form-message error">{error}</div>}
+            {isUploadedDocument(previewDocument) ? <>
+              {documentBody(previewDocument).description && <p className="secretariat-upload-description">{documentBody(previewDocument).description}</p>}
+              <h3>Attached files</h3>
+              <div className="secretariat-preview-attachments">{documentAttachments(previewDocument).map((attachment) => <button key={attachment.path} type="button" className="button button-outline" onClick={() => void openAttachment(attachment)}><FileText size={15} />{attachment.name}</button>)}</div>
+            </> : <div className="secretariat-document-rich-content" dangerouslySetInnerHTML={{ __html: documentHtml(previewDocument) || '<p>No document content.</p>' }} />}
+          </div>
+        </section>
+      </div>}
     </section>
   );
 }
