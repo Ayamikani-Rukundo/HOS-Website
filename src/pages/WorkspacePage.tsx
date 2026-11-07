@@ -123,7 +123,7 @@ const staffAccountDirectory = [
 
 const portalConfig: Record<PortalKind, { icon: typeof LayoutDashboard; tables: AdminTable[]; heading: string; intro: string }> = {
   content: { icon: BookOpen, tables: ['organizations', 'website_sections', 'team_years', 'team_members', 'programs', 'partner_organizations', 'events', 'announcements', 'galleries', 'contact_details', 'social_links', 'contact_messages', 'newsletter_subscribers'], heading: 'Administration', intro: 'Communications staff manage public website content, while administrators review organization-wide progress.' },
-  secretariat: { icon: FileText, tables: ['secretariat_documents', 'volunteer_applications', 'volunteers', 'partner_organizations', 'newsletter_subscribers', 'contact_messages', 'contact_details', 'social_links'], heading: 'Secretariat', intro: 'Manage volunteer coordination and shared organization contacts assigned to your role.' },
+  secretariat: { icon: FileText, tables: ['secretariat_documents', 'volunteer_applications', 'volunteers', 'volunteer_assignments', 'partner_organizations', 'newsletter_subscribers', 'contact_messages', 'contact_details', 'social_links'], heading: 'Secretariat', intro: 'Manage volunteer coordination and shared organization contacts assigned to your role.' },
   programs: { icon: HeartHandshake, tables: ['programs'], heading: 'Programs / Child Support', intro: 'Manage child support profiles, milestones, and the programs serving children and families.' },
   finance: { icon: CircleDollarSign, tables: ['donations', 'donors', 'finance_transactions', 'donation_methods', 'grant_opportunities'], heading: 'Finance', intro: 'Manage donor records, giving methods, verified donations, team contributions, income, and expenses.' },
   fundraising: { icon: HeartHandshake, tables: ['donation_campaigns', 'donors', 'donation_methods', 'grant_opportunities'], heading: 'Fundraising / Grants', intro: 'Manage giving areas and grant opportunities, and view finance-managed donor and payment-method records.' },
@@ -309,6 +309,10 @@ export function WorkspacePage() {
 
   if (!portal) return <Navigate to={`/workspace/${available[0]}`} replace />;
   const page = portalConfig[portal];
+  const isVolunteerManagerOnly = portal === 'secretariat'
+    && canAccessRole(roles, ['volunteer_manager'])
+    && !canAccessRole(roles, ['secretariat']);
+  const portalTitle = isVolunteerManagerOnly ? 'Volunteer Management' : labels[portal];
   const canAccessStudents = canAccessRole(roles, ['program_manager', 'case_worker', 'child_protection', 'education_support', 'health_nutrition']);
 
   const handleSignOut = async () => {
@@ -326,7 +330,7 @@ export function WorkspacePage() {
       <aside className="portal-sidebar">
         <Link to="/" className="portal-brand"><img src="/hos-logo.png" alt="" /><span><span className="portal-brand-title">Heart of Sympathy</span><span className="portal-brand-caption">Staff workspace</span></span></Link>
         <div className="portal-kicker">Your workspace</div>
-        <div className="portal-nav-link active"><LayoutDashboard /><span>{labels[portal]}</span></div>
+        <div className="portal-nav-link active"><LayoutDashboard /><span>{portalTitle}</span></div>
         <div className="portal-kicker">Sections</div>
         <nav className="portal-nav" aria-label="Workspace sections">
           <button className={`portal-nav-link${selectedTable === null && activeView === 'overview' ? ' active' : ''}`} type="button" onClick={() => { setSelectedTable(null); setActiveView('overview'); }}><LayoutDashboard /><span>Overview</span></button>
@@ -350,7 +354,7 @@ export function WorkspacePage() {
         <div className="portal-topbar">
           <div>
             {selectedTable && <button type="button" className="workspace-back-link" onClick={() => setSelectedTable(null)}><ArrowLeft size={14} /> All sections</button>}
-            <div className="eyebrow">{labels[portal]}</div><h1>{selectedTable ? configs[selectedTable].title : activeView === 'team' ? 'Team & guide' : activeView === 'accounts' ? 'Staff accounts' : activeView === 'progress' ? 'Track progress' : activeView === 'uploaded' ? 'Uploaded docs' : activeView === 'students' ? 'Our children' : page.heading}</h1><p>{selectedTable === 'donors' && portal === 'fundraising' ? 'View donor records managed by Finance. You cannot edit or delete donor records here.' : selectedTable === 'grant_opportunities' && portal === 'finance' ? 'View grant opportunities managed by Fundraising. You cannot edit or delete grant records here.' : selectedTable === 'donation_methods' && portal === 'fundraising' ? 'View official giving instructions managed by Finance. You cannot edit or delete these methods here.' : selectedTable ? configs[selectedTable].description : activeView === 'team' ? 'Meet your portal team, then use the quick guide below to complete common tasks.' : activeView === 'accounts' ? 'Manage one account for each team portal.' : activeView === 'progress' ? 'Review live metrics and activity history across the organization.' : activeView === 'uploaded' ? 'Browse and manage completed records uploaded to secure storage.' : activeView === 'students' ? 'Manage child profiles, family context, and support milestones in one place.' : portal === 'secretariat' ? 'Create and manage internal Secretariat documents and meeting minutes.' : page.intro}</p>
+            <div className="eyebrow">{portalTitle}</div><h1>{selectedTable ? configs[selectedTable].title : activeView === 'team' ? 'Team & guide' : activeView === 'accounts' ? 'Staff accounts' : activeView === 'progress' ? 'Track progress' : activeView === 'uploaded' ? 'Uploaded docs' : activeView === 'students' ? 'Our children' : isVolunteerManagerOnly ? 'Volunteer Management' : page.heading}</h1><p>{selectedTable === 'donors' && portal === 'fundraising' ? 'View donor records managed by Finance. You cannot edit or delete donor records here.' : selectedTable === 'grant_opportunities' && portal === 'finance' ? 'View grant opportunities managed by Fundraising. You cannot edit or delete grant records here.' : selectedTable === 'donation_methods' && portal === 'fundraising' ? 'View official giving instructions managed by Finance. You cannot edit or delete these methods here.' : selectedTable ? configs[selectedTable].description : activeView === 'team' ? 'Meet your portal team, then use the quick guide below to complete common tasks.' : activeView === 'accounts' ? 'Manage one account for each team portal.' : activeView === 'progress' ? 'Review live metrics and activity history across the organization.' : activeView === 'uploaded' ? 'Browse and manage completed records uploaded to secure storage.' : activeView === 'students' ? 'Manage child profiles, family context, and support milestones in one place.' : isVolunteerManagerOnly ? 'Coordinate volunteer applications, active volunteers, assignments, and shared partner records.' : portal === 'secretariat' && canAccessRole(roles, ['secretariat']) ? 'Create and manage internal Secretariat documents and meeting minutes.' : page.intro}</p>
           </div>
           <div className="portal-actions">
             <button type="button" className="button button-outline portal-theme-toggle" onClick={toggleTheme} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}>
@@ -373,7 +377,7 @@ export function WorkspacePage() {
               ? <><PortalTeam team={getPortalTeam(portal, roles)} /><PortalGuide portal={portal} roles={roles} /></>
             : portal === 'secretariat' && activeView === 'uploaded'
               ? <SecretariatDocumentsWorkspace key="uploaded" mode="uploads" />
-              : portal === 'secretariat'
+              : portal === 'secretariat' && canAccessRole(roles, ['secretariat'])
                 ? <SecretariatDocumentsWorkspace key="documents" mode="documents" />
                 : <PortalOverview portal={portal} tables={visibleTables} onSelect={setSelectedTable} />}
       </main>
@@ -719,7 +723,9 @@ function PortalSummary({ portal, tables, onSelect }: { portal: PortalKind; table
   const { user, roles } = useAuth();
   const [counts, setCounts] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<string | null>(null);
-  const Icon = portalConfig[portal].icon;
+  const Icon = portal === 'secretariat' && roles.includes('volunteer_manager') && !roles.includes('secretariat')
+    ? Users
+    : portalConfig[portal].icon;
   const displayName = typeof user?.user_metadata.full_name === 'string' ? user.user_metadata.full_name : 'team member';
 
   useEffect(() => {
@@ -764,18 +770,30 @@ function PortalSummary({ portal, tables, onSelect }: { portal: PortalKind; table
 }
 
 const progressGroups: Array<{ key: string; label: string; tables: AdminTable[] }> = [
-  { key: 'communications', label: 'Communications', tables: ['organizations', 'website_sections', 'team_members', 'programs', 'partner_organizations', 'events', 'announcements', 'galleries', 'contact_messages', 'newsletter_subscribers'] },
-  { key: 'secretariat', label: 'Secretariat', tables: ['secretariat_documents', 'volunteer_applications', 'volunteers', 'contact_details', 'social_links'] },
-  { key: 'volunteer_management', label: 'Volunteer Management', tables: ['volunteers', 'volunteer_applications', 'partner_organizations'] },
-  { key: 'finance', label: 'Finance', tables: ['donations', 'donors', 'finance_transactions', 'donation_methods'] },
-  { key: 'programs', label: 'Programs / Child Support', tables: ['families', 'children', 'student_support_updates', 'assistance_records', 'programs'] },
-  { key: 'fundraising', label: 'Fundraising / Grants', tables: ['donation_campaigns', 'grant_opportunities'] },
+  { key: 'communications', label: 'Communications', tables: ['organizations', 'website_sections', 'team_years', 'team_members', 'programs', 'partner_organizations', 'events', 'announcements', 'galleries', 'contact_details', 'social_links', 'contact_messages', 'newsletter_subscribers'] },
+  { key: 'secretariat', label: 'Secretariat', tables: ['secretariat_documents'] },
+  { key: 'volunteer_management', label: 'Volunteer Management', tables: ['volunteer_applications', 'volunteers', 'volunteer_assignments', 'partner_organizations', 'contact_details', 'social_links', 'contact_messages', 'newsletter_subscribers'] },
+  { key: 'finance', label: 'Finance', tables: ['donations', 'donors', 'finance_transactions', 'donation_methods', 'grant_opportunities'] },
+  { key: 'programs', label: 'Programs / Child Support', tables: ['programs', 'families', 'children', 'student_support_updates', 'assistance_records'] },
+  { key: 'fundraising', label: 'Fundraising / Grants', tables: ['donation_campaigns', 'donors', 'donation_methods', 'grant_opportunities'] },
 ];
+
+type PortalProgressMetric = { portal_key: string; table_name: string; record_count: number };
+
+function isPortalProgressMetric(value: unknown): value is PortalProgressMetric {
+  if (typeof value !== 'object' || value === null) return false;
+  const metric = value as Record<string, unknown>;
+  return typeof metric.portal_key === 'string'
+    && typeof metric.table_name === 'string'
+    && typeof metric.record_count === 'number'
+    && Number.isSafeInteger(metric.record_count)
+    && metric.record_count >= 0;
+}
 
 function AdminProgressWorkspace() {
   const client = getSupabaseClient();
   const [selectedGroup, setSelectedGroup] = useState(progressGroups[0].key);
-  const [metrics, setMetrics] = useState<Array<{ portal_key: string; table_name: string; record_count: number }>>([]);
+  const [metrics, setMetrics] = useState<PortalProgressMetric[]>([]);
   const [history, setHistory] = useState<DataRow[]>([]);
   const [selectedEvents, setSelectedEvents] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -793,7 +811,17 @@ function AdminProgressWorkspace() {
         listAdminRows('audit_events'),
       ]);
       if (metricsResult.error) throw new Error(`Portal metrics could not be loaded: ${metricsResult.error.message}`);
-      setMetrics(metricsResult.data ?? []);
+      if (!Array.isArray(metricsResult.data) || !metricsResult.data.every(isPortalProgressMetric)) {
+        throw new Error('Portal metrics returned an invalid response. Apply the latest database migration and refresh.');
+      }
+      const loadedMetrics = metricsResult.data;
+      const missingMetrics = progressGroups.flatMap((group) => group.tables
+        .filter((table) => !loadedMetrics.some((metric) => metric.portal_key === group.key && metric.table_name === table))
+        .map((table) => `${group.label}: ${configs[table].title}`));
+      if (missingMetrics.length) {
+        throw new Error(`Portal metrics are incomplete for ${missingMetrics.join(', ')}. Apply the latest database migration and refresh.`);
+      }
+      setMetrics(loadedMetrics);
       setHistory(events);
       return true;
     } catch (loadError) {
@@ -869,7 +897,7 @@ function AdminProgressWorkspace() {
       <div className="panel-heading"><div><h2>{activeGroup.label} progress</h2><p>Live totals for the current records in this workspace.</p></div><button type="button" className="button button-outline button-small" onClick={() => void refresh()} disabled={loading}><RefreshCw size={14} className={loading ? 'spin' : ''} /> Refresh</button></div>
       {loading ? <div className="loading-inline"><LoaderCircle className="spin" size={16} /> Loading progress…</div> : <div className="portal-overview">{activeGroup.tables.map((table) => {
         const metric = metrics.find((item) => item.portal_key === activeGroup.key && item.table_name === table);
-        return <article className="metric-card" key={table}><div className="metric-number">{metric?.record_count.toLocaleString() ?? '0'}</div><div className="metric-label">{configs[table].title}</div></article>;
+        return <article className="metric-card" key={table}><div className="metric-number">{metric?.record_count.toLocaleString() ?? '—'}</div><div className="metric-label">{configs[table].title}</div></article>;
       })}</div>}
     </section>
     <section className="panel">
