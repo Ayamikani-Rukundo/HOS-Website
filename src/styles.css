@@ -632,6 +632,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 :root[data-theme] .home-site .hero-note { color: #fff; }
 :root[data-theme] .home-site .hero-actions .button-outline,
 :root[data-theme] .home-site .hero-actions .button-outline:hover { border-color: var(--gold-fill); background: var(--gold-fill); color: #20271e; }
+.contact-line a { color: var(--gold-bright); text-decoration: underline; text-underline-offset: 2px; }
+.contact-line a:hover { color: var(--gold); }
 .contact-inbox { display: grid; gap: 14px; }
 .contact-inbox-toolbar, .contact-inbox-tools, .contact-inbox-filters { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .contact-inbox-toolbar { justify-content: space-between; }

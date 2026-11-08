@@ -90,7 +90,7 @@ const configs: Record<AdminTable, TableConfig> = {
   advocacy_campaigns: { table: 'advocacy_campaigns', title: 'Advocacy campaigns', description: 'Plan a public learning or awareness campaign with its focus, schedule, venue, and optional image.', columns: ['title', 'focus_area', 'starts_at', 'location'], fields: [field('title', 'Campaign title', 'text', undefined, true), field('focus_area', 'Advocacy focus', 'text', undefined, true), field('summary', 'What will participants learn or do?', 'textarea', undefined, true), field('starts_at', 'Date and start time', 'datetime', undefined, true), field('ends_at', 'Date and end time', 'datetime'), field('location', 'Venue', 'text', undefined, true), field('cover_image_url', 'Campaign image', 'image')] },
   campaign_categories: { table: 'campaign_categories', title: 'Giving area categories', description: 'Categories are entered directly on each giving area.', columns: ['name'], fields: [field('name', 'Name', 'text', undefined, true), field('description', 'Description', 'textarea'), field('icon'), field('sort_order', 'Display order', 'number')] },
   donation_campaigns: { table: 'donation_campaigns', title: 'Giving areas', description: 'Add the category, description, image, wanted and available amounts, currency, dates, and display order. Saving publishes the giving area on the public Donate page immediately.', columns: ['category', 'target_amount', 'raised_amount'], fields: [field('category', 'Category', 'text', undefined, true), field('description', 'Description', 'textarea', undefined, true), field('cover_image_url', 'Image', 'image', undefined, true), field('target_amount', 'Amount wanted', 'number', undefined, true), field('raised_amount', 'Amount available so far', 'number', undefined, true), field('currency_code', 'Currency', 'text', undefined, true), field('starts_at', 'Start date', 'date'), field('ends_at', 'End date', 'date'), field('sort_order', 'Display order', 'number')] },
-  contact_details: { table: 'contact_details', title: 'Contact details', description: 'Official contact points displayed on the public website. Saving publishes them immediately.', columns: ['label', 'category', 'value'], fields: [field('label', 'Label', 'text', undefined, true), field('value', 'Value', 'text', undefined, true), field('category', 'Category', 'text', undefined, true), field('sort_order', 'Display order', 'number')] },
+  contact_details: { table: 'contact_details', title: 'Contact details', description: 'Add public email, phone, WhatsApp, map, or website contact information. Saving publishes it on the Contact page and footer.', columns: ['label', 'category', 'value'], fields: [field('label', 'Contact label', 'text', undefined, true), field('value', 'Contact information', 'text', undefined, true), field('category', 'Contact type', 'select', ['email', 'phone', 'whatsapp', 'location', 'website', 'other'], true), field('sort_order', 'Display order', 'number')] },
   social_links: { table: 'social_links', title: 'Social links', description: 'Verified organization social profiles. Saving publishes them immediately.', columns: ['platform', 'url'], fields: [field('platform', 'Platform', 'text', undefined, true), field('url', 'URL', 'text', undefined, true), field('sort_order', 'Display order', 'number')] },
   newsletter_subscribers: { table: 'newsletter_subscribers', title: 'Newsletter subscribers', description: 'Only people who signed up are listed. Unsubscribing removes their record from this list.', columns: ['email', 'consented_at'], fields: [], canCreate: false, deleteLabel: 'Delete subscriber' },
   volunteer_applications: { table: 'volunteer_applications', title: 'Volunteer applications', description: 'Review incoming volunteer interest and update its status.', columns: ['full_name', 'email', 'status', 'created_at'], fields: [field('status', 'Status', 'select', ['new', 'reviewing', 'accepted', 'declined'])], canCreate: false, canDelete: false },
@@ -1645,7 +1645,7 @@ function RecordWorkspace({ config }: { config: TableConfig }) {
         </div>
       )}
       {!loading && rows.length > pageSize && <div className="pagination"><span className="field-hint">Showing {page * pageSize + 1}–{Math.min((page + 1) * pageSize, rows.length)} of {rows.length}</span><div className="row-actions"><button className="button button-outline button-small" type="button" disabled={page === 0} onClick={() => setPage((current) => current - 1)}>Previous</button><button className="button button-outline button-small" type="button" disabled={(page + 1) * pageSize >= rows.length} onClick={() => setPage((current) => current + 1)}>Next</button></div></div>}
-      {editing && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setEditing(null); }}><div className="modal record-modal" role="dialog" aria-modal="true" aria-labelledby="record-editor-title"><div className="modal-header"><div><div className="eyebrow">{isNew ? 'Create record' : 'Update record'}</div><h2 id="record-editor-title">{config.title}</h2></div><button className="icon-button" type="button" onClick={() => setEditing(null)} aria-label="Close form"><X size={17} /></button></div><form className="modal-body" noValidate onSubmit={(event) => void save(event)}>{['events', 'announcements'].includes(config.table) && <div className="notice"><Shield size={16} /><span>Subscriber email notifications are not configured. Publishing a record will not send email.</span></div>}<div className="form-grid">{config.fields.filter((item) => item.key !== 'consent_received' || isNew).map((item) => <FieldEditor key={item.key} field={item} value={getEditorFieldValue(editing, item)} folder={safeName(config.table)} isNew={isNew} error={fieldErrors[item.key]} />)}</div>{error && <div role="alert" className="form-message error">{error}</div>}<div className="record-form-actions"><button type="button" className="button button-outline" disabled={busy} onClick={() => setEditing(null)}>Cancel</button><button type="submit" className="button button-primary" disabled={busy}>{busy ? 'Saving…' : isNew ? 'Create record' : 'Save changes'} <Check size={14} /></button></div></form></div></div>}
+      {editing && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setEditing(null); }}><div className="modal record-modal" role="dialog" aria-modal="true" aria-labelledby="record-editor-title"><div className="modal-header"><div><div className="eyebrow">{isNew ? 'Create record' : 'Update record'}</div><h2 id="record-editor-title">{config.title}</h2></div><button className="icon-button" type="button" onClick={() => setEditing(null)} aria-label="Close form"><X size={17} /></button></div><form className="modal-body" noValidate onSubmit={(event) => void save(event)}>{['events', 'announcements'].includes(config.table) && <div className="notice"><Shield size={16} /><span>Subscriber email notifications are not configured. Publishing a record will not send email.</span></div>}<div className="form-grid">{config.table === 'contact_details' && <ContactDetailFields key={String(editing.id ?? 'new')} editing={editing} error={fieldErrors} />}{config.fields.filter((item) => item.key !== 'consent_received' && (config.table !== 'contact_details' || !['label', 'value', 'category'].includes(item.key))).map((item) => <FieldEditor key={item.key} field={item} value={getEditorFieldValue(editing, item)} folder={safeName(config.table)} isNew={isNew} error={fieldErrors[item.key]} />)}</div>{error && <div role="alert" className="form-message error">{error}</div>}<div className="record-form-actions"><button type="button" className="button button-outline" disabled={busy} onClick={() => setEditing(null)}>Cancel</button><button type="submit" className="button button-primary" disabled={busy}>{busy ? 'Saving…' : isNew ? 'Create record' : 'Save changes'} <Check size={14} /></button></div></form></div></div>}
       {confirmingRow && <ConfirmActionDialog
         title={`${config.deleteLabel ?? 'Delete record'} permanently?`}
         message={config.table === 'newsletter_subscribers'
@@ -1679,6 +1679,72 @@ function recordPreviewImages(row: DataRow) {
     : [];
   return images.length ? images : [row.image_url, row.cover_image_url, row.logo_url]
     .filter((value): value is string => typeof value === 'string' && value.length > 0);
+}
+
+function ContactDetailFields({ editing, error }: { editing: DataRow; error: Record<string, string> }) {
+  const savedCategory = String(editing.category ?? '');
+  const categoryAliases: Record<string, string> = { map: 'location', address: 'location' };
+  const normalizedCategory = categoryAliases[savedCategory] ?? savedCategory;
+  const supportedCategories = ['email', 'phone', 'whatsapp', 'location', 'website', 'other'];
+  const [category, setCategory] = useState(supportedCategories.includes(normalizedCategory) ? normalizedCategory : 'other');
+  const defaultLabels: Record<string, string> = {
+    email: 'Email',
+    phone: 'Phone',
+    whatsapp: 'WhatsApp',
+    location: 'Location',
+    website: 'Website',
+  };
+  const savedLabel = String(editing.label ?? '');
+  const [customLabel, setCustomLabel] = useState(savedLabel);
+  const labels: Record<string, string> = {
+    email: 'Email',
+    phone: 'Phone',
+    whatsapp: 'WhatsApp',
+    location: 'Location',
+    website: 'Website',
+  };
+  const valueSettings: Record<string, { label: string; type: string; placeholder: string; hint: string }> = {
+    email: { label: 'Email address', type: 'email', placeholder: 'name@example.com', hint: 'Visitors can click this to compose an email.' },
+    phone: { label: 'Phone number', type: 'tel', placeholder: '+250 7XX XXX XXX', hint: 'Visitors can tap this number to call.' },
+    whatsapp: { label: 'WhatsApp number', type: 'tel', placeholder: '+250 7XX XXX XXX', hint: 'Include the country code so the WhatsApp link works.' },
+    location: { label: 'Location or address', type: 'text', placeholder: 'City, district, street address, or place name', hint: 'Visitors can open this location in a map.' },
+    website: { label: 'Website address', type: 'url', placeholder: 'https://example.org', hint: 'Visitors can open this website in a new tab.' },
+    other: { label: 'Contact information', type: 'text', placeholder: 'Enter the contact information', hint: 'This will be shown as plain text.' },
+  };
+  const setting = valueSettings[category];
+  const [value, setValue] = useState(String(editing.value ?? ''));
+
+  return <>
+    <label className="field">
+      <span className="field-label">What kind of contact is this? *</span>
+      <select className="select" name="category" value={category} onChange={(event) => {
+        const nextCategory = event.target.value;
+        setCategory(nextCategory);
+        setCustomLabel('');
+        setValue('');
+      }} required>
+        <option value="email">Email address</option>
+        <option value="phone">Phone number</option>
+        <option value="whatsapp">WhatsApp</option>
+        <option value="location">Map location</option>
+        <option value="website">Website</option>
+        <option value="other">Other contact information</option>
+      </select>
+      <span className="field-hint">Choose a type to see the right input below.</span>
+    </label>
+    {category === 'other' && <label className="field">
+      <span className="field-label">What should this be called? *</span>
+      <input className="input" name="label" required value={customLabel} onChange={(event) => setCustomLabel(event.target.value)} placeholder="For example: Office hours" aria-invalid={Boolean(error.label)} aria-describedby={error.label ? 'field-error-contact-label' : undefined} />
+      {error.label && <span id="field-error-contact-label" role="alert" className="field-error">{error.label}</span>}
+    </label>}
+    {category !== 'other' && <input type="hidden" name="label" value={category === normalizedCategory && savedLabel && savedLabel !== defaultLabels[category] ? savedLabel : labels[category]} />}
+    <label className="field field-span">
+      <span className="field-label">{setting.label} *</span>
+      <input className="input" name="value" type={setting.type} required value={value} onChange={(event) => setValue(event.target.value)} placeholder={setting.placeholder} aria-invalid={Boolean(error.value)} aria-describedby={error.value ? 'field-error-contact-value' : undefined} />
+      <span className="field-hint">{setting.hint}</span>
+      {error.value && <span id="field-error-contact-value" role="alert" className="field-error">{error.value}</span>}
+    </label>
+  </>;
 }
 
 function FieldEditor({ field: item, value, folder, isNew, error }: { field: Field; value: unknown; folder: string; isNew: boolean; error?: string }) {

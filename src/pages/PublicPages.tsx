@@ -9,6 +9,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock3,
+  Globe2,
   Heart,
   HeartHandshake,
   Mail,
@@ -23,6 +24,7 @@ import { createPortal } from 'react-dom';
 import { NewsletterForm } from '../components/NewsletterForm';
 import { siteConfig } from '../data/site';
 import { digestNewsletterToken } from '../lib/newsletter';
+import { contactDetailHref, contactDetailOpensNewTab } from '../lib/contact-detail-links';
 import { getSupabaseClient, isSupabaseConfigured } from '../lib/supabase';
 import { useSiteContent } from '../lib/site-content-context';
 
@@ -591,7 +593,12 @@ export function ContactPage() {
           <div>
             <div className="section-heading"><div className="eyebrow">HOS contact details</div><h2 style={{ fontSize: '2rem' }}>Kigali, Rwanda</h2><p>Use the contact details below to reach Heart of Sympathy.</p></div>
             <div className="contact-list">
-              {details.map((item) => <div className="contact-line" key={item.id}>{item.category === 'email' ? <Mail size={17} /> : item.category === 'phone' ? <MessageCircle size={17} /> : <MapPin size={17} />}<span>{item.label}<br /><strong>{item.value}</strong></span></div>)}
+              {details.map((item) => {
+                const href = contactDetailHref(item.category, item.value);
+                const opensNewTab = contactDetailOpensNewTab(item.category);
+                const icon = item.category === 'email' ? <Mail size={17} /> : ['phone', 'whatsapp'].includes(item.category) ? <MessageCircle size={17} /> : item.category === 'website' ? <Globe2 size={17} /> : <MapPin size={17} />;
+                return <div className="contact-line" key={item.id}>{icon}<span>{item.label}<br /><strong>{href ? <a href={href} {...(opensNewTab ? { target: '_blank', rel: 'noreferrer' } : {})}>{item.value}</a> : item.value}</strong></span></div>;
+              })}
               {organization?.email && <div className="contact-line"><Mail size={17} /><span>Email<br /><a href={`mailto:${organization.email}`}><strong>{organization.email}</strong></a></span></div>}
               {organization?.phone && <div className="contact-line"><MessageCircle size={17} /><span>Phone<br /><a href={`tel:${organization.phone}`}><strong>{organization.phone}</strong></a></span></div>}
               <div className="contact-line"><MapPin size={17} /><span>Location<br /><strong>{location}</strong></span></div>

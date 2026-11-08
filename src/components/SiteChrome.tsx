@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowUpRight, ChevronDown, HeartHandshake, Mail, MapPin, Menu, Moon, Sun } from 'lucide-react';
+import { ArrowUpRight, ChevronDown, Globe2, HeartHandshake, Mail, MapPin, Menu, MessageCircle, Moon, Sun } from 'lucide-react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { NewsletterForm } from './NewsletterForm';
 import { navItems, siteConfig } from '../data/site';
+import { contactDetailHref, contactDetailOpensNewTab } from '../lib/contact-detail-links';
 import { useAuth } from '../lib/auth-context';
 import { useSiteContent } from '../lib/site-content-context';
 import { useTheme } from '../lib/theme-context';
@@ -211,7 +212,12 @@ export function SiteFooter() {
           <div className="footer-contact-list">
             <span><MapPin size={15} /><span>{organization?.location ?? siteConfig.location}</span></span>
             {organization?.email && <a href={`mailto:${organization.email}`}><Mail size={15} /><span>{organization.email}</span></a>}
-            {publicContacts.map((item) => <span key={item.id}><HeartHandshake size={15} /><span>{item.label}: {item.value}</span></span>)}
+            {publicContacts.map((item) => {
+              const href = contactDetailHref(item.category, item.value);
+              const opensNewTab = contactDetailOpensNewTab(item.category);
+              const icon = item.category === 'email' ? <Mail size={15} /> : ['phone', 'whatsapp'].includes(item.category) ? <MessageCircle size={15} /> : item.category === 'website' ? <Globe2 size={15} /> : item.category === 'location' ? <MapPin size={15} /> : <HeartHandshake size={15} />;
+              return <span key={item.id}>{icon}<span>{item.label}: {href ? <a href={href} {...(opensNewTab ? { target: '_blank', rel: 'noreferrer' } : {})}>{item.value}</a> : item.value}</span></span>;
+            })}
           </div>
           <Link className="footer-contact-link" to="/contact">Get in touch <ArrowUpRight size={14} /></Link>
         </address>
