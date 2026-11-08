@@ -259,6 +259,9 @@ export type Database = {
         message: string;
         status: string;
         assigned_to: string | null;
+        is_read: boolean;
+        created_at: string;
+        updated_at: string;
       }>;
       newsletter_subscribers: Table<{
         id: string;

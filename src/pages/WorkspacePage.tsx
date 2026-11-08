@@ -18,6 +18,8 @@ import {
   LayoutDashboard,
   LoaderCircle,
   LogOut,
+  Mail,
+  MailOpen,
   Megaphone,
   Pencil,
   Plus,
@@ -97,7 +99,7 @@ const configs: Record<AdminTable, TableConfig> = {
   donations: { table: 'donations', title: 'Donation records', description: 'Record verified donations; never treat a browser submission as a payment.', columns: ['amount', 'currency_code', 'status', 'received_at'], fields: [referenceField('campaign_id', 'Campaign', 'donation_campaigns', ['title']), referenceField('donor_id', 'Donor', 'donors', ['full_name', 'organization_name']), field('amount', 'Amount', 'number', undefined, true), field('currency_code', 'Currency'), field('status', 'Status', 'select', ['pending', 'completed', 'failed', 'refunded', 'cancelled']), field('payment_provider', 'Provider'), field('provider_reference', 'Provider reference'), field('received_at', 'Received at', 'datetime'), field('notes', 'Notes', 'textarea')], canDelete: false },
   donors: { table: 'donors', title: 'Donors', description: 'Private donor contact records.', columns: ['full_name', 'organization_name', 'is_anonymous'], fields: [field('full_name', 'Name'), field('email', 'Email'), field('phone', 'Phone'), field('organization_name', 'Organization'), field('is_anonymous', 'Anonymous', 'boolean')], canDelete: false },
   donation_methods: { table: 'donation_methods', title: 'Donation methods', description: 'Add official bank, mobile-money, or other giving instructions. Saving makes them available to visitors immediately.', columns: ['label', 'method_type', 'details'], fields: [field('label', 'Method name', 'text', undefined, true), field('method_type', 'Method type', 'select', ['mobile_money', 'bank_transfer', 'other'], true), field('details', 'Account or contact details', 'textarea', undefined, true), field('instructions', 'Instructions', 'textarea'), field('sort_order', 'Display order', 'number')] },
-  contact_messages: { table: 'contact_messages', title: 'Contact inbox', description: 'Messages received from the public contact form.', columns: ['full_name', 'email', 'subject', 'status'], fields: [field('status', 'Status', 'select', ['new', 'in_progress', 'resolved', 'archived'])], canCreate: false, deleteLabel: 'Delete message' },
+  contact_messages: { table: 'contact_messages', title: 'Contact inbox', description: 'Read and follow up on messages received from the public contact form.', columns: ['full_name', 'email', 'subject', 'created_at'], fields: [], readOnly: true, canCreate: false, canDelete: false },
   secretariat_documents: { table: 'secretariat_documents', title: 'Documents & minutes', description: 'Create minutes, memos and internal reports, or upload completed records for secure storage.', columns: ['title', 'document_type', 'meeting_date', 'status'], fields: [field('title', 'Title', 'text', undefined, true), field('document_type', 'Document type', 'select', ['note', 'meeting_minutes', 'memo', 'report']), field('meeting_date', 'Meeting date', 'date'), field('status', 'Status', 'select', ['draft', 'final']), field('body', 'Notes and attached files', 'document')] },
   department_updates: { table: 'department_updates', title: 'Department updates', description: 'Submit a period update for management review.', columns: ['department', 'period_start', 'period_end', 'status'], fields: [field('department', 'Department', 'text', undefined, true), field('period_start', 'Period start', 'date', undefined, true), field('period_end', 'Period end', 'date', undefined, true), field('summary', 'Summary', 'textarea', undefined, true), field('progress', 'Progress notes (one per line)', 'json'), field('status', 'Status', 'select', ['draft', 'submitted', 'reviewed'])] },
   families: { table: 'families', title: 'Family records', description: 'Confidential family data. Access follows organization roles and database RLS.', columns: ['household_code', 'primary_contact_name', 'district', 'status'], fields: [field('household_code', 'Household code'), field('primary_contact_name', 'Primary contact', 'text', undefined, true), field('phone', 'Phone'), field('email', 'Email'), field('address', 'Address', 'textarea'), field('district', 'District'), field('sector', 'Sector'), field('household_size', 'Household size', 'number'), field('vulnerability_notes', 'Restricted notes', 'textarea'), field('status', 'Status', 'select', ['active', 'inactive', 'closed'])] },
@@ -372,7 +374,9 @@ export function WorkspacePage() {
         {selectedTable
           ? selectedTable === 'staff_accounts'
             ? <StaffAccountsWorkspace />
-            : <RecordWorkspace key={selectedTable} config={getTableConfig(portal, selectedTable, roles)} />
+            : selectedTable === 'contact_messages'
+              ? <ContactInboxWorkspace />
+              : <RecordWorkspace key={selectedTable} config={getTableConfig(portal, selectedTable, roles)} />
           : activeView === 'students'
             ? <StudentSupportWorkspace roles={roles} />
             : activeView === 'accounts'
@@ -1061,6 +1065,166 @@ function StaffAccountsWorkspace() {
         </section>
       </div>}
     </>
+  );
+}
+
+function ContactInboxWorkspace() {
+  const [rows, setRows] = useState<DataRow[]>([]);
+  const [filter, setFilter] = useState<'all' | 'unread' | 'read'>('all');
+  const [search, setSearch] = useState('');
+  const [selectedMessage, setSelectedMessage] = useState<DataRow | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      setRows(await listAdminRows('contact_messages'));
+      setError(null);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : 'Unable to load contact messages.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void Promise.resolve().then(refresh); }, [refresh]);
+
+  useEffect(() => {
+    if (!selectedMessage) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setSelectedMessage(null);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [selectedMessage]);
+
+  const unreadCount = rows.filter((row) => row.is_read !== true).length;
+  const normalizedSearch = search.trim().toLocaleLowerCase();
+  const visibleRows = rows.filter((row) => {
+    const isRead = row.is_read === true;
+    if (filter === 'unread' && isRead) return false;
+    if (filter === 'read' && !isRead) return false;
+    if (!normalizedSearch) return true;
+    return ['full_name', 'email', 'subject', 'message'].some((key) =>
+      String(row[key] ?? '').toLocaleLowerCase().includes(normalizedSearch),
+    );
+  });
+
+  const toggleRead = async (row: DataRow) => {
+    const id = typeof row.id === 'string' ? row.id : '';
+    if (!id) {
+      setError('This message cannot be updated because it has no database ID.');
+      return;
+    }
+    const isRead = row.is_read === true;
+    setSavingId(id);
+    setError(null);
+    try {
+      await saveAdminRow('contact_messages', { is_read: !isRead }, id);
+      setRows((current) => current.map((item) => item.id === id ? { ...item, is_read: !isRead } : item));
+      setSelectedMessage((current) => current?.id === id ? { ...current, is_read: !isRead } : current);
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Unable to update message read status.');
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  const deleteMessage = async () => {
+    if (!selectedMessage) return;
+    const id = typeof selectedMessage.id === 'string' ? selectedMessage.id : '';
+    if (!id) {
+      setError('This message cannot be deleted because it has no database ID.');
+      return;
+    }
+    setDeleting(true);
+    setError(null);
+    try {
+      await deleteAdminRow('contact_messages', selectedMessage);
+      setRows((current) => current.filter((row) => row.id !== id));
+      setSelectedMessage(null);
+      setConfirmingDelete(false);
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : 'Unable to permanently delete this message.');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const formatMessageDate = (value: unknown) => {
+    if (typeof value !== 'string' || !value) return 'Date unavailable';
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? 'Date unavailable' : new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+  };
+
+  return (
+    <section className="contact-inbox">
+      <div className="contact-inbox-toolbar">
+        <div className="contact-inbox-filters" role="group" aria-label="Filter contact messages">
+          {(['all', 'unread', 'read'] as const).map((value) => (
+            <button type="button" key={value} className={`button button-small ${filter === value ? 'button-primary' : 'button-outline'}`} aria-pressed={filter === value} onClick={() => setFilter(value)}>
+              {value === 'all' ? `All (${rows.length})` : value === 'unread' ? `Unread (${unreadCount})` : `Read (${rows.length - unreadCount})`}
+            </button>
+          ))}
+        </div>
+        <div className="contact-inbox-tools">
+          <label className="search-field contact-inbox-search"><Search size={15} /><input className="input" type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search messages" aria-label="Search contact messages" /></label>
+          <button type="button" className="button button-outline button-small" onClick={() => void refresh()} disabled={loading}><RefreshCw size={13} className={loading ? 'spin' : ''} /> Refresh</button>
+        </div>
+      </div>
+      {error && <div role="alert" className="form-message error">{error}</div>}
+      {loading ? <div className="loading-inline"><LoaderCircle className="spin" size={16} /> Loading contact messages…</div>
+        : visibleRows.length === 0 ? <div className="empty-state">{rows.length ? 'No messages match this inbox filter.' : 'No contact messages have been received yet.'}</div>
+          : <div className="contact-inbox-list">{visibleRows.map((row) => {
+            const id = String(row.id ?? '');
+            const isRead = row.is_read === true;
+            return <article className={`contact-inbox-item${isRead ? '' : ' is-unread'}`} key={id}>
+              <button type="button" className="contact-inbox-open" onClick={() => { setError(null); setSelectedMessage(row); }} aria-label={`Read message from ${String(row.full_name ?? 'website visitor')}: ${String(row.subject ?? 'No subject')}`}>
+                <span className="contact-inbox-icon">{isRead ? <MailOpen size={18} /> : <Mail size={18} />}</span>
+                <span className="contact-inbox-summary">
+                  <span className="contact-inbox-sender">{String(row.full_name ?? 'Unknown sender')} <small>{String(row.email ?? '')}</small></span>
+                  <strong>{String(row.subject ?? 'No subject')}</strong>
+                  <span className="contact-inbox-excerpt">{String(row.message ?? '')}</span>
+                </span>
+                <time>{formatMessageDate(row.created_at)}</time>
+              </button>
+              <button type="button" className="contact-inbox-toggle" onClick={() => void toggleRead(row)} disabled={savingId === id} aria-label={`Mark as ${isRead ? 'unread' : 'read'}`}>
+                {isRead ? <Mail size={14} /> : <MailOpen size={14} />}{savingId === id ? 'Saving…' : isRead ? 'Mark unread' : 'Mark read'}
+              </button>
+            </article>;
+          })}</div>}
+      {selectedMessage && <div className="modal-backdrop contact-message-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedMessage(null); }}>
+        <section className="modal contact-message-modal" role="dialog" aria-modal="true" aria-labelledby="contact-message-subject">
+          <header className="modal-header contact-message-header">
+            <div className="contact-message-heading"><span className={`pill ${selectedMessage.is_read === true ? '' : 'pill-gold'}`}>{selectedMessage.is_read === true ? 'Read' : 'Unread'}</span><h2 id="contact-message-subject">{String(selectedMessage.subject ?? 'No subject')}</h2><p>Received {formatMessageDate(selectedMessage.created_at)}</p></div>
+            <div className="contact-message-header-actions">
+              <button type="button" className="button button-danger button-small" onClick={() => { setError(null); setConfirmingDelete(true); }}><Trash2 size={14} /> Delete permanently</button>
+              <button type="button" className="icon-button" aria-label="Close message" onClick={() => { setSelectedMessage(null); setConfirmingDelete(false); }}><X size={17} /></button>
+            </div>
+          </header>
+          <div className="contact-message-body">
+            <div className="contact-message-sender"><strong>{String(selectedMessage.full_name ?? 'Unknown sender')}</strong><a href={`mailto:${encodeURIComponent(String(selectedMessage.email ?? ''))}`}>{String(selectedMessage.email ?? '')}</a></div>
+            <p className="contact-message-copy">{String(selectedMessage.message ?? '')}</p>
+            {confirmingDelete && <div className="contact-message-delete-confirm" role="alertdialog" aria-label="Confirm permanent message deletion"><p><strong>Permanently delete this message?</strong> This cannot be undone.</p><div><button type="button" className="button button-outline button-small" disabled={deleting} onClick={() => setConfirmingDelete(false)}>Cancel</button><button type="button" className="button button-danger button-small" disabled={deleting} onClick={() => void deleteMessage()}>{deleting ? 'Deleting…' : 'Confirm delete permanently'}</button></div></div>}
+            <div className="contact-message-actions">
+              <a className="button button-outline button-small" href={`mailto:${encodeURIComponent(String(selectedMessage.email ?? ''))}?subject=${encodeURIComponent(`Re: ${String(selectedMessage.subject ?? '')}`)}`}>Reply by email</a>
+              <button type="button" className="button button-primary button-small" disabled={savingId === String(selectedMessage.id ?? '')} onClick={() => void toggleRead(selectedMessage)}>
+                {selectedMessage.is_read === true ? <Mail size={14} /> : <MailOpen size={14} />}{savingId === String(selectedMessage.id ?? '') ? 'Saving…' : selectedMessage.is_read === true ? 'Mark unread' : 'Mark read'}
+              </button>
+            </div>
+          </div>
+        </section>
+      </div>}
+    </section>
   );
 }
 
