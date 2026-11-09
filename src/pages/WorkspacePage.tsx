@@ -548,14 +548,14 @@ type AnalyticsPoint = { date: string; label: string; value: number };
 type AnalyticsSlice = { label: string; value: number; color: string };
 
 const communicationTables = [
-  'organizations', 'website_sections', 'team_years', 'team_members', 'programs', 'partner_organizations', 'galleries',
+  'organizations', 'website_sections', 'team_years', 'team_members', 'programs', 'galleries',
   'contact_details', 'social_links',
 ];
 const activityGroups: Array<{ label: string; color: string; tables: string[] }> = [
   { label: 'Communications', color: 'var(--gold-bright)', tables: communicationTables },
   { label: 'Programs & child support', color: '#70c4a8', tables: ['families', 'children', 'case_records', 'case_notes', 'assistance_records', 'department_updates'] },
   { label: 'Finance', color: '#91c9ce', tables: ['donations', 'finance_transactions'] },
-  { label: 'Fundraising', color: '#d99bff', tables: ['donors', 'donation_campaigns', 'grant_opportunities'] },
+  { label: 'Fundraising', color: '#d99bff', tables: ['donors', 'donation_campaigns', 'grant_opportunities', 'partner_organizations'] },
   { label: 'Secretariat & volunteers', color: '#ff9d73', tables: ['secretariat_documents', 'volunteers', 'volunteer_assignments', 'volunteer_applications'] },
   { label: 'Advocacy', color: '#e6c14f', tables: ['events', 'announcements', 'advocacy_campaigns'] },
 ];
@@ -788,12 +788,12 @@ function PortalSummary({ portal, tables, onSelect }: { portal: PortalKind; table
 }
 
 const progressGroups: Array<{ key: string; label: string; tables: AdminTable[] }> = [
-  { key: 'communications', label: 'Communications', tables: ['organizations', 'website_sections', 'team_years', 'team_members', 'programs', 'partner_organizations', 'galleries', 'contact_details', 'social_links', 'contact_messages', 'newsletter_subscribers'] },
+  { key: 'communications', label: 'Communications', tables: ['organizations', 'website_sections', 'team_years', 'team_members', 'programs', 'galleries', 'contact_details', 'social_links', 'contact_messages', 'newsletter_subscribers'] },
   { key: 'secretariat', label: 'Secretariat', tables: ['secretariat_documents'] },
-  { key: 'volunteer_management', label: 'Volunteer Management', tables: ['volunteer_applications', 'volunteers', 'volunteer_assignments', 'partner_organizations', 'contact_details', 'social_links', 'contact_messages', 'newsletter_subscribers'] },
+  { key: 'volunteer_management', label: 'Volunteer Management', tables: ['volunteer_applications', 'volunteers', 'volunteer_assignments', 'contact_details', 'social_links', 'contact_messages', 'newsletter_subscribers'] },
   { key: 'finance', label: 'Finance', tables: ['donations', 'donors', 'finance_transactions', 'donation_methods', 'grant_opportunities'] },
   { key: 'programs', label: 'Programs / Child Support', tables: ['programs', 'families', 'children', 'student_support_updates', 'assistance_records'] },
-  { key: 'fundraising', label: 'Fundraising / Grants', tables: ['donation_campaigns', 'donors', 'donation_methods', 'grant_opportunities'] },
+  { key: 'fundraising', label: 'Fundraising / Grants', tables: ['donation_campaigns', 'donors', 'donation_methods', 'grant_opportunities', 'partner_organizations'] },
   { key: 'advocacy', label: 'Advocacy', tables: ['events', 'announcements', 'advocacy_campaigns'] },
 ];
 
