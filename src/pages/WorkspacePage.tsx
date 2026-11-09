@@ -84,7 +84,7 @@ const configs: Record<AdminTable, TableConfig> = {
   team_years: { table: 'team_years', title: 'Team years', description: 'Annual team rosters. Saving publishes the roster immediately.', columns: ['year_label'], fields: [field('year_label', 'Year', 'text', undefined, true), field('sort_order', 'Display order', 'number')] },
   team_members: { table: 'team_members', title: 'Team members', description: 'Staff and leadership biographies. Saving publishes the profile immediately.', columns: ['full_name', 'role_title'], fields: [referenceField('team_year_id', 'Team year', 'team_years', ['year_label'], true), field('full_name', 'Full name', 'text', undefined, true), field('role_title', 'Role title'), field('focus_area'), field('biography', 'Biography', 'textarea'), field('email'), field('avatar_url', 'Profile image', 'image'), field('sort_order', 'Display order', 'number')] },
   programs: { table: 'programs', title: 'Programs', description: 'Public program information and summaries. Saving publishes the program immediately.', columns: ['name', 'slug'], fields: [field('slug', 'URL slug', 'text', undefined, true), field('name', 'Name', 'text', undefined, true), field('summary', 'Summary', 'textarea', undefined, true), field('description', 'Description', 'textarea'), field('impact', 'Focus / impact', 'textarea'), field('feature_label'), field('cover_image_url', 'Cover image', 'image'), field('additional_images', 'Additional images', 'json'), field('objectives', 'Objectives (one per line)', 'json'), field('is_featured', 'Featured', 'boolean'), field('sort_order', 'Display order', 'number')] },
-  partner_organizations: { table: 'partner_organizations', title: 'Partner organizations', description: 'Manage the organizations working alongside Heart of Sympathy. Saving publishes the partner immediately.', columns: ['name', 'focus_area', 'website_url'], fields: [field('name', 'Organization name', 'text', undefined, true), field('focus_area', 'Partnership focus'), field('description', 'About the partnership', 'textarea'), field('logo_url', 'Organization logo', 'image'), field('website_url', 'Website'), field('sort_order', 'Display order', 'number')] },
+  partner_organizations: { table: 'partner_organizations', title: 'Partner organizations', description: 'Fundraising manages partner records. Communications and Volunteer Management can view and export the shared records.', columns: ['name', 'focus_area', 'website_url'], fields: [field('name', 'Organization name', 'text', undefined, true), field('focus_area', 'Partnership focus'), field('description', 'About the partnership', 'textarea'), field('logo_url', 'Organization logo', 'image'), field('website_url', 'Website'), field('sort_order', 'Display order', 'number')] },
   galleries: { table: 'galleries', title: 'Gallery', description: 'Create a photo post with one or more original images. Saving publishes it immediately.', columns: ['title', 'collection_name'], fields: [field('title', 'Post title'), field('additional_images', 'Post images', 'image-list', undefined, true), field('alt_text', 'Alternative text'), field('caption', 'Caption', 'textarea'), field('description', 'Description', 'textarea'), field('collection_name', 'Collection'), field('activity_date', 'Activity date', 'date'), field('sort_order', 'Display order', 'number')] },
   events: { table: 'events', title: 'Events', description: 'Publish an event with its date, venue, and optional registration details.', columns: ['title', 'event_date', 'location'], fields: [field('title', 'Event title', 'text', undefined, true), field('summary', 'What will happen?', 'textarea', undefined, true), field('starts_at', 'Date and start time', 'datetime', undefined, true), field('ends_at', 'End time', 'datetime'), field('location', 'Venue', 'text', undefined, true), field('cover_image_url', 'Event image', 'image'), field('registration_url', 'Registration link')] },
   announcements: { table: 'announcements', title: 'Announcements', description: 'Publish a public update on the Events page.', columns: ['title', 'published_at'], fields: [field('title', 'Announcement title', 'text', undefined, true), field('body', 'Announcement', 'textarea', undefined, true), field('cover_image_url', 'Announcement image', 'image')] },
@@ -133,7 +133,7 @@ const portalConfig: Record<PortalKind, { icon: typeof LayoutDashboard; tables: A
   secretariat: { icon: FileText, tables: ['secretariat_documents', 'volunteer_applications', 'volunteers', 'volunteer_assignments', 'partner_organizations', 'newsletter_subscribers', 'contact_messages', 'contact_details', 'social_links'], heading: 'Secretariat', intro: 'Manage volunteer coordination and shared organization contacts assigned to your role.' },
   programs: { icon: HeartHandshake, tables: ['programs'], heading: 'Programs / Child Support', intro: 'Manage child support profiles, milestones, and the programs serving children and families.' },
   finance: { icon: CircleDollarSign, tables: ['donations', 'donors', 'finance_transactions', 'donation_methods', 'grant_opportunities'], heading: 'Finance', intro: 'Manage donor records, giving methods, verified donations, team contributions, income, and expenses.' },
-  fundraising: { icon: HeartHandshake, tables: ['donation_campaigns', 'donors', 'donation_methods', 'grant_opportunities'], heading: 'Fundraising / Grants', intro: 'Manage giving areas and grant opportunities, and view finance-managed donor and payment-method records.' },
+  fundraising: { icon: HeartHandshake, tables: ['donation_campaigns', 'donors', 'donation_methods', 'grant_opportunities', 'partner_organizations'], heading: 'Fundraising / Grants', intro: 'Manage giving areas, grant opportunities, and partner organizations, and view finance-managed donor and payment-method records.' },
   advocacy: { icon: Megaphone, tables: ['events', 'announcements', 'advocacy_campaigns'], heading: 'Advocacy', intro: 'Plan public events, share announcements, and coordinate campaigns that bring people together to learn and take action.' },
 };
 
@@ -304,7 +304,7 @@ export function WorkspacePage() {
   const selectedTable = portal && selection?.portal === portal ? selection.table : null;
   const [activeView, setActiveView] = useState<'overview' | 'team' | 'uploaded' | 'students' | 'accounts' | 'progress'>('overview');
   const [signOutError, setSignOutError] = useState<string | null>(null);
-  const canManagePartners = canAccessRole(roles, ['communications', 'volunteer_manager']);
+  const canManagePartners = canAccessRole(roles, ['admin', 'communications', 'volunteer_manager', 'fundraiser']);
   const canManageGallery = canAccessRole(roles, ['communications']);
   const visibleTables = portal
     ? pageTablesForRole(portal, roles).filter((table) => table !== 'partner_organizations' && table !== 'galleries' && table !== 'donation_methods' && table !== 'secretariat_documents')
@@ -471,7 +471,7 @@ function pageTablesForRole(portal: PortalKind, roles: string[]) {
     team_years: ['communications'],
     team_members: ['communications'],
     programs: ['communications', 'program_manager'],
-    partner_organizations: ['communications', 'volunteer_manager'],
+    partner_organizations: ['admin', 'communications', 'volunteer_manager', 'fundraiser'],
     events: ['advocacy_lead'],
     announcements: ['advocacy_lead'],
     advocacy_campaigns: ['advocacy_lead'],
@@ -510,7 +510,7 @@ function getTableConfig(portal: PortalKind, table: AdminTable, roles: string[]):
     team_years: ['communications'],
     team_members: ['communications'],
     programs: ['communications', 'program_manager'],
-    partner_organizations: ['communications', 'volunteer_manager'],
+    partner_organizations: ['admin', 'fundraiser'],
     events: ['advocacy_lead'],
     announcements: ['advocacy_lead'],
     advocacy_campaigns: ['advocacy_lead'],
@@ -1605,8 +1605,8 @@ function RecordWorkspace({ config }: { config: TableConfig }) {
             const subtitle = config.table === 'team_members'
               ? [row.role_title, row.email].filter((value): value is string => typeof value === 'string' && value.trim().length > 0).join(' · ')
               : String(row.collection_name ?? row.focus_area ?? row.status ?? 'HOS record');
-            return <article className="record-preview-card" key={rowId}>
-              {previewImages.length ? <div className={`record-preview-images${config.table === 'team_members' ? ' record-preview-member-image' : ''}`}>{previewImages.slice(0, 4).map((src, imageIndex) => <img src={src} key={`${src}-${imageIndex}`} alt={config.table === 'team_members' ? `${title} profile` : ''} loading="lazy" />)}</div> : <div className={`record-preview-placeholder${config.table === 'team_members' ? ' record-preview-member-image' : ''}`}>{config.table === 'team_members' ? <Users size={24} /> : <ImageUp size={24} />}</div>}
+            return <article className={`record-preview-card${config.table === 'partner_organizations' ? ' record-preview-partner-card' : ''}`} key={rowId}>
+              {previewImages.length ? <div className={`record-preview-images${config.table === 'team_members' ? ' record-preview-member-image' : ''}${config.table === 'partner_organizations' ? ' record-preview-partner-image' : ''}`}>{previewImages.slice(0, 4).map((src, imageIndex) => <img src={src} key={`${src}-${imageIndex}`} alt={config.table === 'partner_organizations' ? `${title} logo` : config.table === 'team_members' ? `${title} profile` : ''} loading="lazy" />)}</div> : <div className={`record-preview-placeholder${config.table === 'team_members' ? ' record-preview-member-image' : ''}${config.table === 'partner_organizations' ? ' record-preview-partner-image' : ''}`}>{config.table === 'team_members' ? <Users size={24} /> : <ImageUp size={24} />}</div>}
               <div className="record-preview-content"><div className="card-kicker">{subtitle}</div><h3>{title}</h3><p>{String(row.biography ?? row.caption ?? row.description ?? row.summary ?? '') || 'No biography has been added.'}</p>
                 <div className="record-preview-actions">
                   {canEdit && <button className="button button-outline button-small" type="button" onClick={() => { setEditing(row); setIsNew(false); setFieldErrors({}); setError(null); }}><Pencil size={13} /> Edit</button>}

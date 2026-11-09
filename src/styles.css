@@ -752,6 +752,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .record-preview-member-image { height: 185px; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
 .record-preview-member-image img { object-position: center 32%; }
 .record-preview-member-image img:only-child { grid-column: auto; grid-row: auto; }
+.record-preview-partner-image { aspect-ratio: 1; height: auto; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+.record-preview-partner-image img { object-fit: contain; padding: 12px; }
+.record-preview-partner-image img:only-child { grid-column: auto; grid-row: auto; }
+.record-preview-partner-card .record-preview-content p { -webkit-line-clamp: 2; }
 .record-preview-placeholder.record-preview-member-image { color: var(--muted); }
 .record-preview-placeholder { display: grid; height: 145px; place-items: center; background: var(--page-soft); color: var(--gold); }
 .record-preview-content { display: grid; align-content: start; gap: 7px; padding: 12px; }
