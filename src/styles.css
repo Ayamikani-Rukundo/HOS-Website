@@ -86,6 +86,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 :root[data-theme='light'] .site::before { opacity: .58; }
 .site > main { position: relative; z-index: auto; }
 .site-header, .site-footer { position: relative; z-index: 1; }
+.site:has(> main .modal-backdrop, > main .lightbox) > main { z-index: 100; }
 .wrap { width: min(1080px, calc(100% - 48px)); margin-inline: auto; }
 .serif, h1, h2, h3, h4 { font-family: var(--serif); font-weight: 500; letter-spacing: -.025em; }
 .eyebrow, .label, .nav-link, .button, .pill, .table-head, .meta, .brand-tagline, .field-label, .portal-kicker {
