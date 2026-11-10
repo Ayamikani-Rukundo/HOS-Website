@@ -66,7 +66,7 @@ const removePublicPhoto = async (client: ReturnType<typeof getSupabaseClient>, u
 export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
   const { user } = useAuth();
   const client = getSupabaseClient();
-  const canPublish = roles.some((role) => ['program_manager', 'case_worker', 'child_protection', 'education_support', 'health_nutrition'].includes(role));
+  const canPublish = roles.some((role) => ['admin', 'director', 'program_manager', 'case_worker', 'child_protection', 'education_support', 'health_nutrition'].includes(role));
   const [students, setStudents] = useState<Student[]>([]);
   const [families, setFamilies] = useState<Family[]>([]);
   const [profiles, setProfiles] = useState<StudentProfile[]>([]);
@@ -426,9 +426,14 @@ export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
                 <span><strong>Enrollment</strong>{selectedStudent.enrollment_status.replaceAll('_', ' ')}</span>
                 <span><strong>Student status</strong>{selectedStudent.status}</span>
               </div>
-              <div className={`student-public-status${selectedProfile?.is_published ? ' published' : ''}`}>
-                <span className="status-dot" />{selectedProfile?.is_published ? 'Public profile published' : 'Private staff record'}
-              </div>
+              <button
+                type="button"
+                className={`student-public-status student-publication-action${selectedProfile?.is_published ? ' published' : ''}`}
+                onClick={() => openStudentForm(selectedStudent)}
+                aria-label={selectedProfile?.is_published ? 'Edit or unpublish public student profile' : 'Prepare or publish student profile'}
+              >
+                <span className="status-dot" />{selectedProfile?.is_published ? 'Published · edit or unpublish' : 'Private · prepare or publish'}
+              </button>
               <p className="field-hint">Only the profile fields and milestones specifically approved for sharing appear on the public website.</p>
             </article>
             <article className="panel student-timeline-panel">
@@ -510,7 +515,33 @@ export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
                 <label className="field field-span"><span className="field-label">Student background and story</span><textarea className="textarea" maxLength={500} value={studentDraft.public_bio ?? ''} onChange={(event) => setStudentDraft({ ...studentDraft, public_bio: event.target.value })} placeholder="A short, respectful introduction about the student and their journey" /></label>
                 <label className="field"><span className="field-label">Profile photo</span><span className="image-upload-button"><ImageUp size={15} />{photo?.name || (studentDraft.profile_photo_url ? 'Choose a new photo' : 'Choose photo')}<input type="file" accept="image/jpeg,image/png,image/webp,image/avif" disabled={!studentDraft.is_published} onChange={(event) => setPhoto(event.target.files?.[0] ?? null)} /></span><span className="field-hint">JPEG, PNG, WebP or AVIF; maximum 5 MB. A photo is uploaded only when the profile is published.</span></label>
                 {studentDraft.profile_photo_url && !photo && <div className="student-form-photo"><img src={studentDraft.profile_photo_url} alt="Current profile photo preview" /></div>}
-                <label className="checkbox-field field-span"><input type="checkbox" checked={Boolean(studentDraft.is_published)} onChange={(event) => { setStudentDraft({ ...studentDraft, is_published: event.target.checked }); if (!event.target.checked) setPhoto(null); }} /><span>Publish this profile on the public website. Check the display name, story, school stage, and photo before sharing.</span></label>
+                <fieldset className="student-publish-control field-span">
+                  <legend>Should this profile appear on the public website?</legend>
+                  <p>Choose “Yes” only when the public display name and story are approved to share. Only the public profile details below will be visible.</p>
+                  <div className="student-publish-options">
+                    <label className={`student-publish-option${!studentDraft.is_published ? ' selected' : ''}`}>
+                      <input
+                        type="radio"
+                        name="student-publication"
+                        checked={!studentDraft.is_published}
+                        disabled={!canPublish}
+                        onChange={() => { setStudentDraft({ ...studentDraft, is_published: false }); setPhoto(null); }}
+                      />
+                      <span><strong>No — keep private</strong><small>Save this student for staff only. You can publish later.</small></span>
+                    </label>
+                    <label className={`student-publish-option${studentDraft.is_published ? ' selected' : ''}`}>
+                      <input
+                        type="radio"
+                        name="student-publication"
+                        checked={Boolean(studentDraft.is_published)}
+                        disabled={!canPublish}
+                        onChange={() => setStudentDraft({ ...studentDraft, is_published: true })}
+                      />
+                      <span><strong>Yes — publish profile</strong><small>Show the approved public profile on the student directory.</small></span>
+                    </label>
+                  </div>
+                  {!canPublish && <span className="field-hint">Your role cannot change publication. Ask an authorized Child Support team member.</span>}
+                </fieldset>
               </div>
               <p className="field-hint field-span">Date of birth, gender, family details, private notes, health, and individual support status stay in the protected staff record and are never included in the public profile.</p>
               {error && <div role="alert" className="form-message error field-span">{error}</div>}

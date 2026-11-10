@@ -1133,6 +1133,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .student-detail-facts strong { color: var(--ink-soft); font-weight: 500; }
 .student-public-status { display: flex; align-items: center; gap: 7px; margin: 14px 0 7px; color: var(--muted); font-size: .68rem; }
 .student-public-status.published { color: var(--success); }
+.student-publication-action { padding: 5px 9px; border: 1px solid var(--line); border-radius: 999px; background: transparent; cursor: pointer; font: inherit; transition: border-color .18s ease, background .18s ease; }
+.student-publication-action:hover { border-color: var(--green); background: rgba(var(--green-rgb), .08); }
+.student-publication-action:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
 .status-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 .student-detail-card .field-hint { margin: 4px 0 0; }
 .student-timeline-panel { min-width: 0; padding: 17px; }
@@ -1154,6 +1157,17 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .student-public-form-section p { margin: 0; color: var(--muted); font-size: .75rem; line-height: 1.55; }
 .student-public-form-section .field { min-width: 0; }
 .student-public-form-section .field-span, .student-public-form-section > .field-hint { grid-column: 1 / -1; }
+.student-publish-control { display: grid; min-width: 0; gap: 9px; margin: 0; padding: 14px; border: 1px solid var(--line-strong); border-radius: 12px; background: var(--surface); }
+.student-publish-control legend { padding: 0; color: var(--ink); font-size: .86rem; font-weight: 700; }
+.student-publish-control > p { margin: 0; color: var(--muted); font-size: .73rem; line-height: 1.5; }
+.student-publish-options { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.student-publish-option { display: flex; min-height: 76px; align-items: flex-start; gap: 11px; padding: 13px; border: 1px solid var(--line); border-radius: 9px; background: var(--page); cursor: pointer; transition: border-color .18s ease, background .18s ease; }
+.student-publish-option.selected { border-color: var(--green); background: rgba(var(--green-rgb), .1); }
+.student-publish-option input { width: 20px; height: 20px; flex: 0 0 auto; margin: 1px 0 0; accent-color: var(--green); }
+.student-publish-option > span { display: grid; gap: 4px; }
+.student-publish-option strong { color: var(--ink); font-size: .79rem; }
+.student-publish-option small { color: var(--muted); font-size: .69rem; line-height: 1.45; }
+.student-publish-control > .field-hint { margin: 0; }
 .student-form-photo { display: grid; min-height: 120px; place-items: center; }
 .student-form-photo img { width: 108px; height: 108px; border: 2px solid var(--line-strong); border-radius: 50%; object-fit: cover; }
 .donation-selection { padding-block: 25px 56px; }
@@ -1230,6 +1244,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   .portal-guide-grid { grid-template-columns: 1fr; }
   .student-public-form-section { grid-template-columns: minmax(0, 1fr); }
   .student-public-form-section > * { grid-column: 1 / -1; }
+  .student-publish-options { grid-template-columns: minmax(0, 1fr); }
   .confirm-action-dialog .record-form-actions { flex-direction: column-reverse; }
   .confirm-action-dialog .record-form-actions .button { width: 100%; }
 }
