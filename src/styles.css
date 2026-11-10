@@ -1136,6 +1136,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .student-publication-action { padding: 5px 9px; border: 1px solid var(--line); border-radius: 999px; background: transparent; cursor: pointer; font: inherit; transition: border-color .18s ease, background .18s ease; }
 .student-publication-action:hover { border-color: var(--green); background: rgba(var(--green-rgb), .08); }
 .student-publication-action:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+.student-status-badges { display: flex; flex-wrap: wrap; gap: 5px; }
+.student-status-badge { display: inline-flex; align-items: center; padding: 3px 7px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font: 600 .62rem 'DM Sans', sans-serif; text-transform: capitalize; }
+.student-status-badge.active, .student-status-badge.published { border-color: rgba(var(--success-rgb), .32); background: rgba(var(--success-rgb), .1); color: var(--success); }
+.student-detail-card > .student-status-badge { margin-top: 8px; }
+.student-staff-card-copy .student-status-badges { overflow: visible; text-overflow: clip; white-space: normal; }
+.student-staff-card-copy .student-status-badge { overflow: visible; text-overflow: clip; white-space: nowrap; }
 .status-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 .student-detail-card .field-hint { margin: 4px 0 0; }
 .student-timeline-panel { min-width: 0; padding: 17px; }

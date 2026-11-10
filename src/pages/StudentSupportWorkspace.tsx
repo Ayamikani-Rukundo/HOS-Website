@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { ArrowLeft, ArrowRight, GraduationCap, HeartHandshake, ImageUp, Pencil, Plus, RefreshCw, Search, Trash2, UsersRound, X } from 'lucide-react';
 import { useAuth } from '../lib/auth-context';
-import { listAdminRows, uploadPublicImage } from '../lib/admin-api';
+import { listAdminRows, uploadPublicImage, validateImageFile } from '../lib/admin-api';
 import { getSupabaseClient } from '../lib/supabase';
 
 type Student = {
@@ -22,6 +22,7 @@ type Student = {
   profile_photo_url?: string | null;
   school_stage?: string | null;
   is_published?: boolean;
+  private_photo_path?: string | null;
 };
 
 type Family = { id: string; household_code: string | null; primary_contact_name: string };
@@ -34,6 +35,7 @@ type StudentProfile = {
   public_bio: string | null;
   school_stage: string | null;
   is_published: boolean;
+  private_photo_path: string | null;
 };
 type SupportUpdate = {
   id: string;
@@ -62,6 +64,27 @@ const removePublicPhoto = async (client: ReturnType<typeof getSupabaseClient>, u
   const { error } = await client.storage.from('hos-public').remove([path]);
   if (error) throw new Error(error.message);
 };
+const uploadPrivateStudentPhoto = async (client: ReturnType<typeof getSupabaseClient>, profileId: string, file: File) => {
+  validateImageFile(file);
+  const extension = file.name.split('.').pop()?.toLocaleLowerCase().replace(/[^a-z0-9]/g, '');
+  const path = `student-profile-drafts/${profileId}/${crypto.randomUUID()}${extension ? `.${extension}` : ''}`;
+  const { error } = await client.storage.from('hos-private').upload(path, file, {
+    cacheControl: '3600',
+    contentType: file.type,
+    upsert: false,
+  });
+  if (error) throw new Error(error.message);
+  return path;
+};
+const downloadPrivateStudentPhoto = async (client: ReturnType<typeof getSupabaseClient>, path: string) => {
+  const { data, error } = await client.storage.from('hos-private').download(path);
+  if (error) throw new Error(error.message);
+  return new File([data], path.split('/').pop() || 'student-profile-photo', { type: data.type || 'image/jpeg' });
+};
+const removePrivateStudentPhoto = async (client: ReturnType<typeof getSupabaseClient>, path: string) => {
+  const { error } = await client.storage.from('hos-private').remove([path]);
+  if (error) throw new Error(error.message);
+};
 
 export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
   const { user } = useAuth();
@@ -79,6 +102,7 @@ export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
   const [error, setError] = useState<string | null>(null);
   const [modal, setModal] = useState<Modal>(null);
   const [studentDraft, setStudentDraft] = useState<Partial<Student>>({});
+  const [privatePhotoPreviewUrl, setPrivatePhotoPreviewUrl] = useState<string | null>(null);
   const [familyDraft, setFamilyDraft] = useState({ primary_contact_name: '', household_code: '', district: '' });
   const [supportDraft, setSupportDraft] = useState<Partial<SupportUpdate>>({});
   const [photo, setPhoto] = useState<File | null>(null);
@@ -88,7 +112,7 @@ export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
     const [childrenResult, familiesResult, profilesResult, updatesResult, assistanceResult] = await Promise.all([
       client.from('children').select('id, family_id, child_code, first_name, last_name, date_of_birth, gender, school_name, grade_level, enrollment_status, status').neq('status', 'closed').order('first_name'),
       client.from('families').select('id, household_code, primary_contact_name').neq('status', 'closed').order('primary_contact_name'),
-      client.from('student_public_profiles').select('id, child_id, slug, display_name, profile_photo_url, public_bio, school_stage, is_published'),
+      client.from('student_public_profiles').select('id, child_id, slug, display_name, profile_photo_url, public_bio, school_stage, is_published, private_photo_path'),
       client.from('student_support_updates').select('id, child_id, occurred_on, category, title, private_notes').order('occurred_on', { ascending: false }),
       listAdminRows('assistance_records'),
     ]);
@@ -118,6 +142,21 @@ export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
     });
     return () => { active = false; };
   }, [refresh]);
+
+  useEffect(() => {
+    const path = modal === 'student' ? studentDraft.private_photo_path : null;
+    if (!path) return;
+
+    let active = true;
+    void client.storage.from('hos-private').createSignedUrl(path, 300).then(({ data, error: signedUrlError }) => {
+      if (signedUrlError) throw new Error(`The saved private student photo could not be previewed: ${signedUrlError.message}`);
+      if (active) setPrivatePhotoPreviewUrl(data.signedUrl);
+    }).catch((previewError: unknown) => {
+      if (active) setError(getErrorMessage(previewError));
+    });
+
+    return () => { active = false; };
+  }, [client, modal, studentDraft.private_photo_path]);
 
   const selectedStudent = students.find((student) => student.id === selectedId) ?? null;
   const selectedProfile = profiles.find((profile) => profile.child_id === selectedId) ?? null;
@@ -150,6 +189,8 @@ export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
 
   const openStudentForm = (student?: Student) => {
     const profile = student ? profiles.find((item) => item.child_id === student.id) : null;
+    setPrivatePhotoPreviewUrl(null);
+    setError(null);
     setStudentDraft(student
       ? {
           ...student,
@@ -159,13 +200,15 @@ export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
           profile_photo_url: profile?.profile_photo_url ?? null,
           school_stage: profile?.school_stage ?? '',
           is_published: profile?.is_published ?? false,
+          private_photo_path: profile?.private_photo_path ?? null,
         }
-      : { family_id: '', first_name: '', last_name: '', child_code: '', date_of_birth: '', gender: 'undisclosed', school_name: '', grade_level: '', enrollment_status: 'unknown', status: 'active', public_bio: '', profile_display_name: '', profile_slug: '', profile_photo_url: null, school_stage: '', is_published: false });
+      : { family_id: '', first_name: '', last_name: '', child_code: '', date_of_birth: '', gender: 'undisclosed', school_name: '', grade_level: '', enrollment_status: 'unknown', status: 'active', public_bio: '', profile_display_name: '', profile_slug: '', profile_photo_url: null, school_stage: '', is_published: false, private_photo_path: null });
     setPhoto(null);
     setModal('student');
   };
   const openUpdateForm = (update?: SupportUpdate) => {
     if (!selectedStudent) return;
+    setPrivatePhotoPreviewUrl(null);
     setSupportDraft(update
       ? { ...update }
       : { child_id: selectedStudent.id, occurred_on: currentDate(), category: 'education', title: '', private_notes: '' });
@@ -175,6 +218,7 @@ export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
   const closeModal = () => {
     if (isSaving) return;
     setModal(null);
+    setPrivatePhotoPreviewUrl(null);
     setError(null);
   };
 
@@ -222,7 +266,7 @@ export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
     const profileName = studentDraft.profile_display_name?.trim()
       || `${studentDraft.first_name.trim()} ${studentDraft.last_name?.trim() ?? ''}`.trim();
     const { data: savedProfile, error: profileLoadError } = await client.from('student_public_profiles')
-      .select('id, slug, profile_photo_url, is_published')
+      .select('id, slug, profile_photo_url, is_published, private_photo_path')
       .eq('child_id', data.id)
       .maybeSingle();
     if (profileLoadError) {
@@ -232,6 +276,34 @@ export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
       return;
     }
     const oldPhotoUrl = savedProfile?.profile_photo_url ?? null;
+    let privatePhotoPath = savedProfile?.private_photo_path ?? null;
+    if (photo) {
+      try {
+        privatePhotoPath = await uploadPrivateStudentPhoto(client, savedProfile?.id ?? data.id, photo);
+      } catch (uploadError) {
+        setError(`Student details were saved, but the private photo could not be uploaded: ${getErrorMessage(uploadError)}`);
+        await refresh();
+        setIsSaving(false);
+        return;
+      }
+    } else if (!studentDraft.is_published && savedProfile?.is_published && oldPhotoUrl && !privatePhotoPath) {
+      try {
+        const oldPhotoPath = publicPhotoObjectPath(oldPhotoUrl);
+        if (!oldPhotoPath) throw new Error('The saved photo is not in the expected public media bucket.');
+        const { data: oldPhoto, error: downloadError } = await client.storage.from('hos-public').download(oldPhotoPath);
+        if (downloadError) throw new Error(downloadError.message);
+        privatePhotoPath = await uploadPrivateStudentPhoto(
+          client,
+          savedProfile.id,
+          new File([oldPhoto], 'student-profile-photo', { type: oldPhoto.type || 'image/jpeg' }),
+        );
+      } catch (copyError) {
+        setError(`Student details were saved, but the published photo could not be kept as a private draft: ${getErrorMessage(copyError)}`);
+        await refresh();
+        setIsSaving(false);
+        return;
+      }
+    }
     const profilePayload = {
       child_id: data.id,
       slug: savedProfile?.slug || `${makeSlug(studentDraft.profile_slug || profileName) || 'student'}-${data.id.slice(0, 8)}`,
@@ -240,26 +312,41 @@ export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
       public_bio: studentDraft.public_bio?.trim() || null,
       school_stage: studentDraft.school_stage?.trim() || null,
       is_published: Boolean(studentDraft.is_published),
+      private_photo_path: privatePhotoPath,
     };
     const { data: profileRecord, error: profileSaveError } = await client.from('student_public_profiles')
       .upsert(profilePayload, { onConflict: 'child_id' })
       .select('id')
       .single();
     if (profileSaveError) {
-      setError(`Student details were saved, but the profile could not be updated: ${profileSaveError.message}`);
+      let cleanupWarning = '';
+      if (privatePhotoPath && privatePhotoPath !== savedProfile?.private_photo_path) {
+        try {
+          await removePrivateStudentPhoto(client, privatePhotoPath);
+        } catch (cleanupError) {
+          cleanupWarning = ` The private photo could not be cleaned up: ${getErrorMessage(cleanupError)}`;
+        }
+      }
+      setError(`Student details were saved, but the profile could not be updated: ${profileSaveError.message}${cleanupWarning}`);
       await refresh();
       setIsSaving(false);
       return;
     }
-    if (photo) {
+    let nextPhotoUrl = studentDraft.is_published ? oldPhotoUrl : null;
+    if (studentDraft.is_published && privatePhotoPath && (photo || !oldPhotoUrl)) {
       let uploadedPhotoUrl: string;
       try {
-        uploadedPhotoUrl = await uploadPublicImage(photo, `student-profiles/${profileRecord.id}`);
+        const publicPhoto = photo ?? await downloadPrivateStudentPhoto(client, privatePhotoPath);
+        uploadedPhotoUrl = await uploadPublicImage(publicPhoto, `student-profiles/${profileRecord.id}`);
       } catch (uploadError) {
         const { error: restoreError } = await client.from('student_public_profiles')
-          .update({ is_published: Boolean(savedProfile?.is_published) })
+          .update({
+            is_published: Boolean(savedProfile?.is_published),
+            profile_photo_url: oldPhotoUrl,
+            private_photo_path: privatePhotoPath,
+          })
           .eq('child_id', data.id);
-        setError(`Student details were saved, but the profile photo could not be uploaded: ${getErrorMessage(uploadError)}${restoreError ? ` The previous publication state could not be restored: ${restoreError.message}` : ''}`);
+        setError(`Student details and the private photo were saved, but the public photo could not be uploaded: ${getErrorMessage(uploadError)}${restoreError ? ` The previous publication state could not be restored: ${restoreError.message}` : ''}`);
         await refresh();
         setIsSaving(false);
         return;
@@ -271,30 +358,35 @@ export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
         const uploadedPath = publicPhotoObjectPath(uploadedPhotoUrl);
         const cleanup = uploadedPath ? await client.storage.from('hos-public').remove([uploadedPath]) : { error: null };
         const { error: restoreError } = await client.from('student_public_profiles')
-          .update({ is_published: Boolean(savedProfile?.is_published), profile_photo_url: oldPhotoUrl })
+          .update({
+            is_published: Boolean(savedProfile?.is_published),
+            profile_photo_url: oldPhotoUrl,
+            private_photo_path: privatePhotoPath,
+          })
           .eq('child_id', data.id);
         setError(`Student details were saved, but the photo could not be attached: ${photoUpdateError.message}${cleanup.error ? ` The uploaded file could not be removed: ${cleanup.error.message}` : ''}${restoreError ? ` The previous profile could not be restored: ${restoreError.message}` : ''}`);
         await refresh();
         setIsSaving(false);
         return;
       }
-      if (oldPhotoUrl && oldPhotoUrl !== uploadedPhotoUrl) {
-        try {
-          await removePublicPhoto(client, oldPhotoUrl);
-        } catch (removeError) {
-          setError(`The new photo is live, but the previous photo could not be removed: ${getErrorMessage(removeError)}`);
-          await refresh();
-          setSelectedId(data.id);
-          setIsSaving(false);
-          return;
-        }
-      }
+      nextPhotoUrl = uploadedPhotoUrl;
     }
-    if (!studentDraft.is_published && oldPhotoUrl) {
+    if (oldPhotoUrl && oldPhotoUrl !== nextPhotoUrl) {
       try {
         await removePublicPhoto(client, oldPhotoUrl);
       } catch (removeError) {
-        setError(`Student details were saved and the profile is private, but the old public photo could not be removed: ${getErrorMessage(removeError)}`);
+        setError(`Student details were saved, but the previous public photo could not be removed: ${getErrorMessage(removeError)}`);
+        await refresh();
+        setSelectedId(data.id);
+        setIsSaving(false);
+        return;
+      }
+    }
+    if (savedProfile?.private_photo_path && savedProfile.private_photo_path !== privatePhotoPath) {
+      try {
+        await removePrivateStudentPhoto(client, savedProfile.private_photo_path);
+      } catch (removeError) {
+        setError(`The new photo was saved, but the previous private photo could not be removed: ${getErrorMessage(removeError)}`);
         await refresh();
         setSelectedId(data.id);
         setIsSaving(false);
@@ -367,7 +459,8 @@ export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
   const deleteStudent = async (student: Student) => {
     setIsSaving(true);
     setError(null);
-    const profilePhotoUrl = profiles.find((profile) => profile.child_id === student.id)?.profile_photo_url;
+    const profile = profiles.find((item) => item.child_id === student.id);
+    const profilePhotoUrl = profile?.profile_photo_url;
     try {
       const { error: deleteError } = await client.from('children').delete().eq('id', student.id);
       if (deleteError) throw new Error(`Student could not be deleted: ${deleteError.message}`);
@@ -385,6 +478,15 @@ export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
           await removePublicPhoto(client, profilePhotoUrl);
         } catch (cleanupError) {
           cleanupWarning = `Student deleted, but their public photo could not be removed: ${getErrorMessage(cleanupError)}`;
+        }
+      }
+      if (profile?.private_photo_path) {
+        try {
+          await removePrivateStudentPhoto(client, profile.private_photo_path);
+        } catch (cleanupError) {
+          cleanupWarning = [cleanupWarning, `Student deleted, but their private profile photo could not be removed: ${getErrorMessage(cleanupError)}`]
+            .filter(Boolean)
+            .join(' ');
         }
       }
 
@@ -434,6 +536,9 @@ export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
               >
                 <span className="status-dot" />{selectedProfile?.is_published ? 'Published · edit or unpublish' : 'Private · prepare or publish'}
               </button>
+              <span className={`student-status-badge${selectedStudent.status === 'active' ? ' active' : ''}`}>
+                {selectedStudent.status === 'active' ? 'Active' : selectedStudent.status === 'inactive' ? 'Inactive' : selectedStudent.status}
+              </span>
               <p className="field-hint">Only the profile fields and milestones specifically approved for sharing appear on the public website.</p>
             </article>
             <article className="panel student-timeline-panel">
@@ -459,7 +564,7 @@ export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
               return <div className="student-staff-card-row" key={student.id}>
                 <button className="student-staff-card" type="button" onClick={() => setSelectedId(student.id)}>
                   <span className="student-staff-avatar">{profile?.profile_photo_url ? <img src={profile.profile_photo_url} alt="" /> : <UsersRound size={25} />}</span>
-                  <span className="student-staff-card-copy"><strong>{studentName}</strong><span>{student.child_code || 'No code'} · {student.school_name || 'School not recorded'}</span><small>{count} support record{count === 1 ? '' : 's'} · {profile?.is_published ? 'Profile public' : 'Private profile'}</small></span><ArrowRight size={17} />
+                  <span className="student-staff-card-copy"><strong>{studentName}</strong><span>{student.child_code || 'No code'} · {student.school_name || 'School not recorded'}</span><small>{count} support record{count === 1 ? '' : 's'}</small><span className="student-status-badges"><span className={`student-status-badge${student.status === 'active' ? ' active' : ''}`}>{student.status === 'active' ? 'Active' : student.status === 'inactive' ? 'Inactive' : student.status}</span><span className={`student-status-badge${profile?.is_published ? ' published' : ''}`}>{profile?.is_published ? 'Published' : 'Private'}</span></span></span><ArrowRight size={17} />
                 </button>
                 <div className="student-staff-card-actions">
                   <button
@@ -513,8 +618,9 @@ export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
                 <label className="field"><span className="field-label">Public display name</span><input className="input" maxLength={100} value={studentDraft.profile_display_name ?? ''} onChange={(event) => setStudentDraft({ ...studentDraft, profile_display_name: event.target.value })} placeholder="Use only a name approved for public display" /></label>
                 <label className="field"><span className="field-label">School stage (optional)</span><input className="input" maxLength={80} value={studentDraft.school_stage ?? ''} onChange={(event) => setStudentDraft({ ...studentDraft, school_stage: event.target.value })} placeholder="For example, primary education" /></label>
                 <label className="field field-span"><span className="field-label">Student background and story</span><textarea className="textarea" maxLength={500} value={studentDraft.public_bio ?? ''} onChange={(event) => setStudentDraft({ ...studentDraft, public_bio: event.target.value })} placeholder="A short, respectful introduction about the student and their journey" /></label>
-                <label className="field"><span className="field-label">Profile photo</span><span className="image-upload-button"><ImageUp size={15} />{photo?.name || (studentDraft.profile_photo_url ? 'Choose a new photo' : 'Choose photo')}<input type="file" accept="image/jpeg,image/png,image/webp,image/avif" disabled={!studentDraft.is_published} onChange={(event) => setPhoto(event.target.files?.[0] ?? null)} /></span><span className="field-hint">JPEG, PNG, WebP or AVIF; maximum 5 MB. A photo is uploaded only when the profile is published.</span></label>
+                <label className="field"><span className="field-label">Profile photo</span><span className="image-upload-button"><ImageUp size={15} />{photo?.name || (studentDraft.profile_photo_url || studentDraft.private_photo_path ? 'Choose a new photo' : 'Choose photo')}<input type="file" accept="image/jpeg,image/png,image/webp,image/avif" onChange={(event) => setPhoto(event.target.files?.[0] ?? null)} /></span><span className="field-hint">JPEG, PNG, WebP or AVIF; maximum 5 MB. A photo saved while private is kept in secure staff-only storage until you publish.</span></label>
                 {studentDraft.profile_photo_url && !photo && <div className="student-form-photo"><img src={studentDraft.profile_photo_url} alt="Current profile photo preview" /></div>}
+                {studentDraft.private_photo_path && !studentDraft.profile_photo_url && !photo && privatePhotoPreviewUrl && <div className="student-form-photo"><img src={privatePhotoPreviewUrl} alt="Private student photo preview" /><span className="field-hint">Saved privately — not visible on the public website.</span></div>}
                 <fieldset className="student-publish-control field-span">
                   <legend>Should this profile appear on the public website?</legend>
                   <p>Choose “Yes” only when the public display name and story are approved to share. Only the public profile details below will be visible.</p>

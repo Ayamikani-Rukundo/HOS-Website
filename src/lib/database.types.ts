@@ -330,6 +330,7 @@ export type Database = {
         public_support_summary: string | null;
         school_stage: string | null;
         is_published: boolean;
+        private_photo_path: string | null;
         published_at: string | null;
         created_at: string;
         updated_at: string;

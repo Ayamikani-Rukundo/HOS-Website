@@ -266,14 +266,19 @@ const acceptedImageTypes = new Map([
   ['image/avif', 'avif'],
 ]);
 
-export async function uploadPublicImage(file: File, folder: string) {
-  const extension = acceptedImageTypes.get(file.type);
-  if (!extension) {
+export function validateImageFile(file: File) {
+  if (!acceptedImageTypes.has(file.type)) {
     throw new Error('Choose a JPEG, PNG, WebP, or AVIF image. SVG files are not allowed.');
   }
   if (file.size > 5 * 1024 * 1024) {
     throw new Error('Images must be 5 MB or smaller.');
   }
+}
+
+export async function uploadPublicImage(file: File, folder: string) {
+  validateImageFile(file);
+  const extension = acceptedImageTypes.get(file.type);
+  if (!extension) throw new Error('The image type could not be recognized.');
 
   const client = getSupabaseClient();
   const path = `${folder}/${crypto.randomUUID()}.${extension}`;
