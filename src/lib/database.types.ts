@@ -384,6 +384,10 @@ export type Database = {
         Args: { p_event_ids: number[] };
         Returns: number;
       };
+      reset_website_page_view_analytics: {
+        Args: Record<PropertyKey, never>;
+        Returns: number;
+      };
       has_any_role: {
         Args: { required_roles: string[] };
         Returns: boolean;

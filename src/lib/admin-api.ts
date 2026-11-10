@@ -221,6 +221,15 @@ export async function loadAdminAnalytics(days = 30) {
   return { pageViews, auditEvents };
 }
 
+export async function resetWebsitePageViewAnalytics() {
+  const { data, error } = await getSupabaseClient().rpc('reset_website_page_view_analytics');
+  if (error) throw new Error(`Unable to reset website page-view analytics: ${error.message}`);
+  if (typeof data !== 'number') {
+    throw new Error('The analytics reset did not return a valid result.');
+  }
+  return data;
+}
+
 export async function saveAdminRow(
   table: AdminTable,
   values: DataRow,

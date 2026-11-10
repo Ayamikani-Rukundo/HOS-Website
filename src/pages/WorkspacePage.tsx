@@ -44,6 +44,7 @@ import {
   loadAdminAnalytics,
   listAdminRows,
   saveAdminRow,
+  resetWebsitePageViewAnalytics,
   listStaffAccounts,
   updateStaffAccount,
   uploadPublicImage,
@@ -567,6 +568,9 @@ function AnalyticsDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [showResetConfirmation, setShowResetConfirmation] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [resetNotice, setResetNotice] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -584,6 +588,31 @@ function AnalyticsDashboard() {
   }, []);
 
   useEffect(() => { void Promise.resolve().then(refresh); }, [refresh]);
+  useEffect(() => {
+    if (!showResetConfirmation) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setShowResetConfirmation(false);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [showResetConfirmation]);
+
+  const resetAnalytics = async () => {
+    setResetting(true);
+    setError(null);
+    setResetNotice(null);
+    try {
+      const removedCount = await resetWebsitePageViewAnalytics();
+      setPageViews([]);
+      setResetNotice(`${removedCount.toLocaleString()} recorded website ${removedCount === 1 ? 'visit' : 'visits'} cleared. New visits will be recorded normally.`);
+      setShowResetConfirmation(false);
+      await refresh();
+    } catch (resetError) {
+      setError(resetError instanceof Error ? resetError.message : 'Website page-view analytics could not be reset.');
+    } finally {
+      setResetting(false);
+    }
+  };
 
   const dailySeries = useMemo(() => {
     const today = new Date(analyticsAnchorTime);
@@ -637,9 +666,24 @@ function AnalyticsDashboard() {
     <section className="analytics-dashboard" aria-labelledby="analytics-heading">
       <div className="analytics-heading">
         <div><div className="eyebrow">Organization dashboard · Last 30 days</div><h2 id="analytics-heading">Activity at a glance</h2><p>Website traffic and recorded staff changes from Supabase audit logs.</p></div>
-        <div className="analytics-refresh">{lastUpdated && <span>Updated {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>}<button type="button" className="button button-outline button-small" onClick={() => void refresh()} disabled={loading}><RefreshCw size={14} className={loading ? 'spin' : ''} /> {loading ? 'Updating…' : 'Refresh'}</button></div>
+        <div className="analytics-refresh">{lastUpdated && <span>Updated {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>}<button type="button" className="button button-outline button-small" onClick={() => void refresh()} disabled={loading || resetting}><RefreshCw size={14} className={loading ? 'spin' : ''} /> {loading ? 'Updating…' : 'Refresh'}</button>
+          <div className="analytics-reset-control">
+            <button type="button" className="button button-outline button-small analytics-reset-button" title="Clear recorded website visits and reset traffic analytics" aria-label="Reset website traffic analytics" aria-expanded={showResetConfirmation} aria-controls="analytics-reset-confirmation" onClick={() => setShowResetConfirmation((visible) => !visible)} disabled={loading || resetting}>
+              <Trash2 size={14} /> Reset
+            </button>
+            {showResetConfirmation && <div className="analytics-reset-popover" id="analytics-reset-confirmation" role="alertdialog" aria-labelledby="analytics-reset-title" aria-describedby="analytics-reset-description">
+              <strong id="analytics-reset-title">Reset website analytics?</strong>
+              <p id="analytics-reset-description">This permanently clears recorded public-site visits. Staff audit history will be kept, and new visits will be tracked as usual.</p>
+              <div className="analytics-reset-actions">
+                <button type="button" className="button button-outline button-small" onClick={() => setShowResetConfirmation(false)} disabled={resetting}>Cancel</button>
+                <button type="button" className="button button-danger button-small" onClick={() => void resetAnalytics()} disabled={resetting}>{resetting ? 'Resetting…' : 'Confirm reset'}</button>
+              </div>
+            </div>}
+          </div>
+        </div>
       </div>
       {error && <div role="alert" className="form-message error">{error}</div>}
+      {resetNotice && <div role="status" className="form-message success">{resetNotice}</div>}
       <div className="analytics-kpis">
         <article className="analytics-kpi"><Eye size={18} /><span>Page views</span><strong>{loading ? '—' : pageViews.length.toLocaleString()}</strong><small>Recorded visits; not unique visitors</small></article>
         <article className="analytics-kpi"><Activity size={18} /><span>Staff changes</span><strong>{loading ? '—' : totalChanges.toLocaleString()}</strong><small>Audited inserts, updates and deletes</small></article>

@@ -26,6 +26,7 @@ create table if not exists public.advocacy_campaigns (
   check (ends_at is null or ends_at >= starts_at)
 );
 
+
 create index if not exists idx_advocacy_campaigns_public_schedule
   on public.advocacy_campaigns(starts_at)
   where status = 'published' and archived_at is null;

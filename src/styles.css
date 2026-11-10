@@ -578,6 +578,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .analytics-heading h2 { margin: 5px 0; font-size: clamp(1.45rem, 2.4vw, 2rem); }
 .analytics-heading p, .analytics-card-heading p { margin: 3px 0 0; color: var(--muted); font-size: .75rem; line-height: 1.5; }
 .analytics-refresh { display: flex; flex: 0 0 auto; align-items: center; gap: 10px; color: var(--muted); font-size: .68rem; }
+.analytics-reset-control { position: relative; }
+.analytics-reset-button:hover { border-color: rgba(var(--danger-rgb), .55); color: var(--danger); }
+.analytics-reset-popover { position: absolute; z-index: 20; top: calc(100% + 8px); right: 0; width: min(320px, calc(100vw - 32px)); padding: 15px; border: 1px solid var(--line-strong); border-radius: 11px; background: var(--surface); box-shadow: var(--shadow); color: var(--ink); }
+.analytics-reset-popover strong { font-size: .82rem; }
+.analytics-reset-popover p { margin: 7px 0 13px; color: var(--muted); font-size: .72rem; line-height: 1.55; }
+.analytics-reset-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .analytics-kpis { display: grid; gap: 11px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .analytics-kpi { display: grid; min-width: 0; align-content: start; gap: 5px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: linear-gradient(135deg, rgba(255,255,255,.025), transparent), var(--surface); }
 .analytics-kpi svg { margin-bottom: 3px; color: var(--gold); }
