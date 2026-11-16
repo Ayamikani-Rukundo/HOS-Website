@@ -546,7 +546,7 @@ export function StudentSupportWorkspace({ roles, readOnly = false }: { roles: st
       ) : (
         <>
           <div className="student-workspace-heading">
-            <div className="student-workspace-title-row"><div><span className="eyebrow">{readOnly ? 'Read-only student records' : 'One student at a time'}</span><h2>Student support</h2><p>{readOnly ? 'All student records, including private profiles, drafts, and closed records.' : 'Keep each student’s profile, family context, and support journey together.'}</p></div>{!readOnly && <button className="button button-primary" type="button" onClick={() => openStudentForm()}><Plus size={15} /> Add student</button>}</div>
+            <div className="student-workspace-title-row"><div><span className="eyebrow">{readOnly ? 'Read-only student records' : 'One student at a time'}</span><h2>Student support</h2><p>{readOnly ? 'Includes active and published students, private or draft profiles, and inactive or closed records. Badges show student status and publication status separately.' : 'Keep each student’s profile, family context, and support journey together.'}</p></div>{!readOnly && <button className="button button-primary" type="button" onClick={() => openStudentForm()}><Plus size={15} /> Add student</button>}</div>
             <div className="student-workspace-toolbar"><label className="student-search"><Search size={16} /><span className="sr-only">Search students</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search students or schools" /></label><span className="student-count">{students.length} student{students.length === 1 ? '' : 's'}</span></div>
           </div>
           {error && <div role="alert" className="form-message error">{error}</div>}
