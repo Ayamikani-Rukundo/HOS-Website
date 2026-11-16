@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ArrowRight, GraduationCap, HeartHandshake, Search, UsersRound } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { getSupabaseClient, isSupabaseConfigured } from '../lib/supabase';
+import { getStudentInitials } from '../lib/student-profile';
 
 type PublicStudent = {
   slug: string;
@@ -9,6 +10,8 @@ type PublicStudent = {
   profile_photo_url: string | null;
   public_bio: string | null;
   school_stage: string | null;
+  family_display_name: string | null;
+  family_district: string | null;
 };
 
 function useStudentDirectory() {
@@ -25,7 +28,7 @@ function useStudentDirectory() {
     const load = async () => {
       const { data, error: loadError } = await client
         .from('public_student_profiles')
-        .select('slug, display_name, profile_photo_url, public_bio, school_stage')
+        .select('slug, display_name, profile_photo_url, public_bio, school_stage, family_display_name, family_district')
         .order('display_name');
       if (!active) return;
       if (loadError) {
@@ -66,7 +69,7 @@ export function StudentDirectoryPage() {
   const [search, setSearch] = useState('');
   const normalizedSearch = search.trim().toLocaleLowerCase();
   const filteredStudents = useMemo(
-    () => students.filter((student) => `${student.display_name} ${student.school_stage ?? ''}`.toLocaleLowerCase().includes(normalizedSearch)),
+    () => students.filter((student) => `${student.display_name} ${student.school_stage ?? ''} ${student.family_display_name ?? ''} ${student.family_district ?? ''}`.toLocaleLowerCase().includes(normalizedSearch)),
     [normalizedSearch, students],
   );
 
@@ -77,7 +80,7 @@ export function StudentDirectoryPage() {
           <div className="eyebrow"><HeartHandshake size={15} /> Student directory</div>
           <h1>Our children</h1>
           <p>These profiles share approved introductions to students supported by HOS.</p>
-          <div className="student-privacy-note">Public profiles contain only information entered for display here. Family contact details, dates of birth, health records, and safeguarding notes stay in staff records.</div>
+          <div className="student-privacy-note">Profiles show only approved details. Family display names and districts appear only when entered for publication; contact details, dates of birth, health records, and safeguarding notes stay private.</div>
         </div>
       </header>
 
@@ -93,10 +96,11 @@ export function StudentDirectoryPage() {
               ? <div className="student-empty-state"><UsersRound size={25} /><h3>{students.length ? 'No matching students' : 'Student profiles are being prepared'}</h3><p>{students.length ? 'Try a different name or school stage.' : 'The student support team will publish profiles as they are ready to share. Please check back soon.'}</p></div>
               : <div className="student-public-grid">{filteredStudents.map((student) => (
                 <Link className="student-public-card" to={`/students/${encodeURIComponent(student.slug)}`} key={student.slug}>
-                  <span className="student-public-avatar">{student.profile_photo_url ? <img src={student.profile_photo_url} alt="" /> : <UsersRound size={34} aria-hidden="true" />}</span>
+                  <span className="student-public-avatar">{student.profile_photo_url ? <img src={student.profile_photo_url} alt="" /> : <span className="student-avatar-initials">{getStudentInitials(student.display_name)}</span>}</span>
                   {student.school_stage && <span className="student-stage">{student.school_stage}</span>}
                   <h3>{student.display_name}</h3>
                   <p>{student.public_bio || 'Student supported through Heart of Sympathy programs.'}</p>
+                  {(student.family_display_name || student.family_district) && <p className="student-family-context">{[student.family_display_name, student.family_district].filter(Boolean).join(' · ')}</p>}
                   <span className="student-card-link">Meet {student.display_name.split(' ')[0]} <ArrowRight size={15} /></span>
                 </Link>
               ))}</div>}
@@ -120,12 +124,13 @@ export function StudentProfilePage() {
       <section className="wrap section student-profile-section">
         <Link className="student-back-link" to="/students"><ArrowLeft size={15} /> All children</Link>
         <div className="student-profile-hero">
-          <div className="student-profile-photo">{student.profile_photo_url ? <img src={student.profile_photo_url} alt="" /> : <UsersRound size={42} aria-hidden="true" />}</div>
+          <div className="student-profile-photo">{student.profile_photo_url ? <img src={student.profile_photo_url} alt="" /> : <span className="student-avatar-initials">{getStudentInitials(student.display_name)}</span>}</div>
           <div className="student-profile-copy">
             <div className="eyebrow"><GraduationCap size={15} /> Student profile</div>
             {student.school_stage && <span className="student-stage">{student.school_stage}</span>}
             <h1>{student.display_name}</h1>
             {student.public_bio && <p className="student-profile-bio">{student.public_bio}</p>}
+            {(student.family_display_name || student.family_district) && <p className="student-family-context"><strong>Family context:</strong> {[student.family_display_name, student.family_district].filter(Boolean).join(' · ')}</p>}
           </div>
         </div>
         <div className="student-profile-footer"><span>Learn about the students supported by Heart of Sympathy.</span><Link className="button button-outline" to="/students">Back to students <ArrowRight size={15} /></Link></div>

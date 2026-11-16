@@ -1,17 +1,14 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { ArrowLeft, ArrowRight, GraduationCap, HeartHandshake, ImageUp, Pencil, Plus, RefreshCw, Search, Trash2, UsersRound, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, GraduationCap, HeartHandshake, ImageUp, Pencil, Plus, RefreshCw, Search, Trash2, X } from 'lucide-react';
 import { useAuth } from '../lib/auth-context';
 import { listAdminRows, uploadPublicImage, validateImageFile } from '../lib/admin-api';
 import { getSupabaseClient } from '../lib/supabase';
+import { getStudentInitials } from '../lib/student-profile';
 
 type Student = {
   id: string;
-  family_id: string;
-  child_code: string | null;
   first_name: string;
   last_name: string | null;
-  date_of_birth: string | null;
-  gender: string | null;
   school_name: string | null;
   grade_level: string | null;
   enrollment_status: string;
@@ -21,11 +18,12 @@ type Student = {
   profile_slug?: string;
   profile_photo_url?: string | null;
   school_stage?: string | null;
+  family_display_name?: string | null;
+  family_district?: string | null;
   is_published?: boolean;
   private_photo_path?: string | null;
 };
 
-type Family = { id: string; household_code: string | null; primary_contact_name: string };
 type StudentProfile = {
   id: string;
   child_id: string;
@@ -34,6 +32,8 @@ type StudentProfile = {
   profile_photo_url: string | null;
   public_bio: string | null;
   school_stage: string | null;
+  family_display_name: string | null;
+  family_district: string | null;
   is_published: boolean;
   private_photo_path: string | null;
 };
@@ -46,9 +46,25 @@ type SupportUpdate = {
   private_notes: string | null;
 };
 type Assistance = { id: string; child_id: string | null; provided_at: string; assistance_type: string; description: string | null };
-type Modal = 'student' | 'update' | 'family' | null;
+type Modal = 'student' | 'update' | null;
 
 const categories = ['education', 'nutrition', 'health', 'family', 'mentorship', 'other'];
+const gradeLevels = [
+  'Nursery',
+  ...Array.from({ length: 6 }, (_, index) => `Primary ${index + 1}`),
+  ...Array.from({ length: 6 }, (_, index) => `Secondary ${index + 1}`),
+  'TVET',
+  'University',
+  'Not currently enrolled',
+  'Other',
+];
+const schoolStages = ['Early childhood', 'Primary', 'Lower secondary', 'Upper secondary', 'TVET', 'Tertiary', 'Other'];
+const rwandaDistricts = [
+  'Bugesera', 'Burera', 'Gakenke', 'Gasabo', 'Gatsibo', 'Gicumbi', 'Gisagara', 'Huye', 'Kamonyi', 'Karongi',
+  'Kayonza', 'Kicukiro', 'Kirehe', 'Muhanga', 'Musanze', 'Ngoma', 'Ngororero', 'Nyabihu', 'Nyagatare',
+  'Nyamagabe', 'Nyamasheke', 'Nyanza', 'Nyarugenge', 'Nyaruguru', 'Rubavu', 'Ruhango', 'Rulindo', 'Rusizi',
+  'Rutsiro', 'Rwamagana', 'Other / outside Rwanda',
+].map((district) => district.trim());
 const currentDate = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Kigali' });
 const getErrorMessage = (error: unknown) => error instanceof Error ? error.message : 'The change could not be saved.';
 const makeSlug = (value: string) => value.toLocaleLowerCase().trim().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -91,7 +107,6 @@ export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
   const client = getSupabaseClient();
   const canPublish = roles.some((role) => ['admin', 'director', 'program_manager', 'case_worker', 'child_protection', 'education_support', 'health_nutrition'].includes(role));
   const [students, setStudents] = useState<Student[]>([]);
-  const [families, setFamilies] = useState<Family[]>([]);
   const [profiles, setProfiles] = useState<StudentProfile[]>([]);
   const [updates, setUpdates] = useState<SupportUpdate[]>([]);
   const [assistance, setAssistance] = useState<Assistance[]>([]);
@@ -103,23 +118,20 @@ export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
   const [modal, setModal] = useState<Modal>(null);
   const [studentDraft, setStudentDraft] = useState<Partial<Student>>({});
   const [privatePhotoPreviewUrl, setPrivatePhotoPreviewUrl] = useState<string | null>(null);
-  const [familyDraft, setFamilyDraft] = useState({ primary_contact_name: '', household_code: '', district: '' });
   const [supportDraft, setSupportDraft] = useState<Partial<SupportUpdate>>({});
   const [photo, setPhoto] = useState<File | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    const [childrenResult, familiesResult, profilesResult, updatesResult, assistanceResult] = await Promise.all([
-      client.from('children').select('id, family_id, child_code, first_name, last_name, date_of_birth, gender, school_name, grade_level, enrollment_status, status').neq('status', 'closed').order('first_name'),
-      client.from('families').select('id, household_code, primary_contact_name').neq('status', 'closed').order('primary_contact_name'),
-      client.from('student_public_profiles').select('id, child_id, slug, display_name, profile_photo_url, public_bio, school_stage, is_published, private_photo_path'),
+    const [childrenResult, profilesResult, updatesResult, assistanceResult] = await Promise.all([
+      client.from('children').select('id, first_name, last_name, school_name, grade_level, enrollment_status, status').neq('status', 'closed').order('first_name'),
+      client.from('student_public_profiles').select('id, child_id, slug, display_name, profile_photo_url, public_bio, school_stage, family_display_name, family_district, is_published, private_photo_path'),
       client.from('student_support_updates').select('id, child_id, occurred_on, category, title, private_notes').order('occurred_on', { ascending: false }),
       listAdminRows('assistance_records'),
     ]);
-    const loadError = childrenResult.error ?? familiesResult.error ?? profilesResult.error ?? updatesResult.error;
+    const loadError = childrenResult.error ?? profilesResult.error ?? updatesResult.error;
     if (loadError) throw new Error(`Student workspace could not be loaded: ${loadError.message}`);
     setStudents(childrenResult.data ?? []);
-    setFamilies(familiesResult.data ?? []);
     setProfiles(profilesResult.data ?? []);
     setUpdates(updatesResult.data ?? []);
     setError(null);
@@ -163,7 +175,7 @@ export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
   const confirmingStudent = students.find((student) => student.id === confirmDeleteId) ?? null;
   const filteredStudents = useMemo(() => {
     const term = search.trim().toLocaleLowerCase();
-    return students.filter((student) => `${student.first_name} ${student.last_name ?? ''} ${student.child_code ?? ''} ${student.school_name ?? ''}`.toLocaleLowerCase().includes(term));
+    return students.filter((student) => `${student.first_name} ${student.last_name ?? ''} ${student.school_name ?? ''}`.toLocaleLowerCase().includes(term));
   }, [search, students]);
   const timeline = useMemo(() => {
     if (!selectedId) return [];
@@ -199,10 +211,12 @@ export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
           profile_slug: profile?.slug ?? '',
           profile_photo_url: profile?.profile_photo_url ?? null,
           school_stage: profile?.school_stage ?? '',
+          family_display_name: profile?.family_display_name ?? '',
+          family_district: profile?.family_district ?? '',
           is_published: profile?.is_published ?? false,
           private_photo_path: profile?.private_photo_path ?? null,
         }
-      : { family_id: '', first_name: '', last_name: '', child_code: '', date_of_birth: '', gender: 'undisclosed', school_name: '', grade_level: '', enrollment_status: 'unknown', status: 'active', public_bio: '', profile_display_name: '', profile_slug: '', profile_photo_url: null, school_stage: '', is_published: false, private_photo_path: null });
+      : { first_name: '', last_name: '', school_name: '', grade_level: '', enrollment_status: 'unknown', status: 'active', public_bio: '', profile_display_name: '', profile_slug: '', profile_photo_url: null, school_stage: '', family_display_name: '', family_district: '', is_published: true, private_photo_path: null });
     setPhoto(null);
     setModal('student');
   };
@@ -224,12 +238,8 @@ export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
 
   const saveStudent = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!studentDraft.family_id || !studentDraft.first_name?.trim()) {
-      setError('Choose a family and enter the student’s first name.');
-      return;
-    }
-    if (studentDraft.is_published && !studentDraft.profile_display_name?.trim()) {
-      setError('Add a public display name before publishing this profile.');
+    if (!studentDraft.first_name?.trim()) {
+      setError('Enter the student’s first name.');
       return;
     }
     if (studentDraft.is_published && !canPublish) {
@@ -243,12 +253,8 @@ export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
     setIsSaving(true);
     setError(null);
     const payload = {
-      family_id: studentDraft.family_id,
-      child_code: studentDraft.child_code || null,
       first_name: studentDraft.first_name.trim(),
       last_name: studentDraft.last_name?.trim() || null,
-      date_of_birth: studentDraft.date_of_birth || null,
-      gender: studentDraft.gender || 'undisclosed',
       school_name: studentDraft.school_name?.trim() || null,
       grade_level: studentDraft.grade_level?.trim() || null,
       enrollment_status: studentDraft.enrollment_status || 'unknown',
@@ -311,6 +317,8 @@ export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
       profile_photo_url: studentDraft.is_published ? oldPhotoUrl : null,
       public_bio: studentDraft.public_bio?.trim() || null,
       school_stage: studentDraft.school_stage?.trim() || null,
+      family_display_name: studentDraft.family_display_name?.trim() || null,
+      family_district: studentDraft.family_district?.trim() || null,
       is_published: Boolean(studentDraft.is_published),
       private_photo_path: privatePhotoPath,
     };
@@ -396,31 +404,6 @@ export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
     await refresh();
     setSelectedId(data.id);
     setModal(null);
-    setIsSaving(false);
-  };
-
-  const saveFamily = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!familyDraft.primary_contact_name.trim()) {
-      setError('Enter the family’s primary contact name.');
-      return;
-    }
-    setIsSaving(true);
-    setError(null);
-    const { data, error: saveError } = await client.from('families').insert({
-      primary_contact_name: familyDraft.primary_contact_name.trim(),
-      household_code: familyDraft.household_code.trim() || null,
-      district: familyDraft.district.trim() || null,
-      status: 'active',
-    }).select('id').single();
-    if (saveError) {
-      setError(`Family record could not be saved: ${saveError.message}`);
-      setIsSaving(false);
-      return;
-    }
-    await refresh();
-    setStudentDraft((current) => ({ ...current, family_id: data.id }));
-    setModal('student');
     setIsSaving(false);
   };
 
@@ -512,16 +495,16 @@ export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
           <div className="student-workspace-heading">
             <button type="button" className="workspace-back-link" onClick={() => setSelectedId(null)}><ArrowLeft size={14} /> All students</button>
             <div className="student-workspace-title-row">
-              <div><span className="eyebrow">Student support record</span><h2>{selectedStudent.first_name} {selectedStudent.last_name}</h2><p>{selectedStudent.child_code || 'No student code'} · {selectedStudent.school_name || 'School not recorded'}{selectedStudent.grade_level ? ` · ${selectedStudent.grade_level}` : ''}</p></div>
+              <div><span className="eyebrow">Student support record</span><h2>{selectedStudent.first_name} {selectedStudent.last_name}</h2><p>{selectedStudent.school_name || 'School not recorded'}{selectedStudent.grade_level ? ` · ${selectedStudent.grade_level}` : ''}</p></div>
               <div className="student-workspace-actions"><button className="button button-outline" type="button" onClick={() => openStudentForm(selectedStudent)}><Pencil size={14} /> Edit student &amp; profile</button><button className="button button-primary" type="button" onClick={() => openUpdateForm()}><Plus size={15} /> Log support</button></div>
             </div>
           </div>
           {error && !modal && <div role="alert" className="form-message error">{error}</div>}
           <div className="student-detail-grid">
             <article className="panel student-detail-card">
-              <div className="student-detail-portrait">{selectedProfile?.profile_photo_url ? <img src={selectedProfile.profile_photo_url} alt="" /> : <UsersRound size={32} />}</div>
+              <div className="student-detail-portrait">{selectedProfile?.profile_photo_url ? <img src={selectedProfile.profile_photo_url} alt="" /> : <span className="student-avatar-initials">{getStudentInitials(`${selectedStudent.first_name} ${selectedStudent.last_name ?? ''}`)}</span>}</div>
               <h3>{selectedStudent.first_name} {selectedStudent.last_name}</h3>
-              <p>{families.find((family) => family.id === selectedStudent.family_id)?.primary_contact_name || 'Family record'}</p>
+              {(selectedProfile?.family_display_name || selectedProfile?.family_district) && <p>{[selectedProfile.family_display_name, selectedProfile.family_district].filter(Boolean).join(' · ')}</p>}
               <div className="student-detail-facts">
                 <span><strong>School</strong>{selectedStudent.school_name || 'Not recorded'}</span>
                 <span><strong>Grade</strong>{selectedStudent.grade_level || 'Not recorded'}</span>
@@ -553,7 +536,7 @@ export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
         <>
           <div className="student-workspace-heading">
             <div className="student-workspace-title-row"><div><span className="eyebrow">One student at a time</span><h2>Student support</h2><p>Keep each student’s profile, family context, and support journey together.</p></div><button className="button button-primary" type="button" onClick={() => openStudentForm()}><Plus size={15} /> Add student</button></div>
-            <div className="student-workspace-toolbar"><label className="student-search"><Search size={16} /><span className="sr-only">Search students</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search students, codes, or schools" /></label><span className="student-count">{students.length} student{students.length === 1 ? '' : 's'}</span></div>
+            <div className="student-workspace-toolbar"><label className="student-search"><Search size={16} /><span className="sr-only">Search students</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search students or schools" /></label><span className="student-count">{students.length} student{students.length === 1 ? '' : 's'}</span></div>
           </div>
           {error && <div role="alert" className="form-message error">{error}</div>}
           {isLoading ? <div className="loading-inline"><span className="loading-dot" /> Loading student records…</div>
@@ -563,8 +546,8 @@ export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
               const studentName = `${student.first_name} ${student.last_name ?? ''}`.trim();
               return <div className="student-staff-card-row" key={student.id}>
                 <button className="student-staff-card" type="button" onClick={() => setSelectedId(student.id)}>
-                  <span className="student-staff-avatar">{profile?.profile_photo_url ? <img src={profile.profile_photo_url} alt="" /> : <UsersRound size={25} />}</span>
-                  <span className="student-staff-card-copy"><strong>{studentName}</strong><span>{student.child_code || 'No code'} · {student.school_name || 'School not recorded'}</span><small>{count} support record{count === 1 ? '' : 's'}</small><span className="student-status-badges"><span className={`student-status-badge${student.status === 'active' ? ' active' : ''}`}>{student.status === 'active' ? 'Active' : student.status === 'inactive' ? 'Inactive' : student.status}</span><span className={`student-status-badge${profile?.is_published ? ' published' : ''}`}>{profile?.is_published ? 'Published' : 'Private'}</span></span></span><ArrowRight size={17} />
+                  <span className="student-staff-avatar">{profile?.profile_photo_url ? <img src={profile.profile_photo_url} alt="" /> : <span className="student-avatar-initials">{getStudentInitials(studentName)}</span>}</span>
+                  <span className="student-staff-card-copy"><strong>{studentName}</strong><span>{student.school_name || 'School not recorded'}</span><small>{count} support record{count === 1 ? '' : 's'}</small><span className="student-status-badges"><span className={`student-status-badge${student.status === 'active' ? ' active' : ''}`}>{student.status === 'active' ? 'Active' : student.status === 'inactive' ? 'Inactive' : student.status}</span><span className={`student-status-badge${profile?.is_published ? ' published' : ''}`}>{profile?.is_published ? 'Published' : 'Private'}</span></span></span><ArrowRight size={17} />
                 </button>
                 <div className="student-staff-card-actions">
                   <button
@@ -580,7 +563,7 @@ export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
                 </div>
               </div>;
             })}</div>
-              : <div className="student-empty-state"><GraduationCap size={26} /><h3>{students.length ? 'No students match your search' : 'Start with a student record'}</h3><p>{students.length ? 'Try another name, student code, or school.' : 'Add a student to create a secure profile and record their support over time.'}</p>{!students.length && <button className="button button-primary" type="button" onClick={() => openStudentForm()}><Plus size={15} /> Add first student</button>}</div>}
+              : <div className="student-empty-state"><GraduationCap size={26} /><h3>{students.length ? 'No students match your search' : 'Start with a student record'}</h3><p>{students.length ? 'Try another name or school.' : 'Add a student to create a secure profile and record their support over time.'}</p>{!students.length && <button className="button button-primary" type="button" onClick={() => openStudentForm()}><Plus size={15} /> Add first student</button>}</div>}
         </>
       )}
 
@@ -601,29 +584,28 @@ export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
 
       {modal && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeModal(); }}>
         <div className="modal modal-wide student-workspace-modal" role="dialog" aria-modal="true" aria-labelledby="student-modal-title">
-          <div className="modal-header"><div><div className="eyebrow">Student support</div><h2 id="student-modal-title">{modal === 'student' ? studentDraft.id ? 'Edit student & profile' : 'Add a student' : modal === 'update' ? supportDraft.id ? 'Edit support milestone' : 'Record a support milestone' : 'Add a family'}</h2></div><button className="icon-button" type="button" onClick={closeModal} disabled={isSaving} aria-label="Close"><X size={17} /></button></div>
+          <div className="modal-header"><div><div className="eyebrow">Student support</div><h2 id="student-modal-title">{modal === 'student' ? studentDraft.id ? 'Edit student & profile' : 'Add a student' : supportDraft.id ? 'Edit support milestone' : 'Record a support milestone'}</h2></div><button className="icon-button" type="button" onClick={closeModal} disabled={isSaving} aria-label="Close"><X size={17} /></button></div>
           <div className="modal-body">
             {modal === 'student' && <form className="form-grid" onSubmit={(event) => void saveStudent(event)}>
-              <label className="field field-span"><span className="field-label">Family record *</span><select className="select" required value={studentDraft.family_id ?? ''} onChange={(event) => setStudentDraft({ ...studentDraft, family_id: event.target.value })}><option value="">Choose family</option>{families.map((family) => <option value={family.id} key={family.id}>{family.primary_contact_name}{family.household_code ? ` · ${family.household_code}` : ''}</option>)}</select><button className="text-button" type="button" onClick={() => { setFamilyDraft({ primary_contact_name: '', household_code: '', district: '' }); setModal('family'); }}>Add a family record</button></label>
               <label className="field"><span className="field-label">First name *</span><input className="input" required value={studentDraft.first_name ?? ''} onChange={(event) => setStudentDraft({ ...studentDraft, first_name: event.target.value })} /></label>
               <label className="field"><span className="field-label">Last name</span><input className="input" value={studentDraft.last_name ?? ''} onChange={(event) => setStudentDraft({ ...studentDraft, last_name: event.target.value })} /></label>
-              <label className="field"><span className="field-label">Student code</span><input className="input" value={studentDraft.child_code ?? ''} onChange={(event) => setStudentDraft({ ...studentDraft, child_code: event.target.value })} /></label>
-              <label className="field"><span className="field-label">Date of birth (staff only)</span><input className="input" type="date" value={studentDraft.date_of_birth ?? ''} onChange={(event) => setStudentDraft({ ...studentDraft, date_of_birth: event.target.value })} /></label>
               <label className="field"><span className="field-label">School</span><input className="input" value={studentDraft.school_name ?? ''} onChange={(event) => setStudentDraft({ ...studentDraft, school_name: event.target.value })} /></label>
-              <label className="field"><span className="field-label">Grade / level</span><input className="input" value={studentDraft.grade_level ?? ''} onChange={(event) => setStudentDraft({ ...studentDraft, grade_level: event.target.value })} /></label>
-              <label className="field"><span className="field-label">Gender (staff only)</span><select className="select" value={studentDraft.gender ?? 'undisclosed'} onChange={(event) => setStudentDraft({ ...studentDraft, gender: event.target.value })}>{['undisclosed', 'female', 'male', 'other'].map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
+              <label className="field"><span className="field-label">Grade / level</span><select className="select" value={studentDraft.grade_level ?? ''} onChange={(event) => setStudentDraft({ ...studentDraft, grade_level: event.target.value })}><option value="">Choose grade / level</option>{gradeLevels.map((level) => <option key={level} value={level}>{level}</option>)}{studentDraft.grade_level && !gradeLevels.includes(studentDraft.grade_level) && <option value={studentDraft.grade_level}>{studentDraft.grade_level}</option>}</select></label>
               <label className="field"><span className="field-label">Enrollment</span><select className="select" value={studentDraft.enrollment_status ?? 'unknown'} onChange={(event) => setStudentDraft({ ...studentDraft, enrollment_status: event.target.value })}>{['unknown', 'enrolled', 'not_enrolled', 'graduated'].map((option) => <option key={option} value={option}>{option.replaceAll('_', ' ')}</option>)}</select></label>
               <label className="field"><span className="field-label">Status</span><select className="select" value={studentDraft.status ?? 'active'} onChange={(event) => setStudentDraft({ ...studentDraft, status: event.target.value })}>{['active', 'inactive', 'closed'].map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
-              <div className="student-public-form-section field-span"><div><span className="eyebrow">Optional public profile</span><h3>Prepare the visitor-facing story</h3><p>Keep this short and respectful. Private family details, full birth dates, health information, and support status are never published.</p></div>
-                <label className="field"><span className="field-label">Public display name</span><input className="input" maxLength={100} value={studentDraft.profile_display_name ?? ''} onChange={(event) => setStudentDraft({ ...studentDraft, profile_display_name: event.target.value })} placeholder="Use only a name approved for public display" /></label>
-                <label className="field"><span className="field-label">School stage (optional)</span><input className="input" maxLength={80} value={studentDraft.school_stage ?? ''} onChange={(event) => setStudentDraft({ ...studentDraft, school_stage: event.target.value })} placeholder="For example, primary education" /></label>
+              <div className="student-public-form-section field-span"><div><span className="eyebrow">Public profile · published by default</span><h3>Profile details</h3><p>Only add a family display name or district when it is approved for public sharing. Never enter phone numbers, addresses, health details, or safeguarding information here.</p></div>
+                <label className="field"><span className="field-label">Public display name</span><input className="input" maxLength={100} value={studentDraft.profile_display_name ?? ''} onChange={(event) => setStudentDraft({ ...studentDraft, profile_display_name: event.target.value })} placeholder={`${studentDraft.first_name ?? ''} ${studentDraft.last_name ?? ''}`.trim() || 'Use an approved name'} /><span className="field-hint">If left blank, the student’s name above is used.</span></label>
+                <label className="field"><span className="field-label">School stage (optional)</span><select className="select" value={studentDraft.school_stage ?? ''} onChange={(event) => setStudentDraft({ ...studentDraft, school_stage: event.target.value })}><option value="">Choose school stage</option>{schoolStages.map((stage) => <option key={stage} value={stage}>{stage}</option>)}{studentDraft.school_stage && !schoolStages.includes(studentDraft.school_stage) && <option value={studentDraft.school_stage}>{studentDraft.school_stage}</option>}</select></label>
+                <label className="field"><span className="field-label">Family / guardian display name (optional)</span><input className="input" maxLength={100} value={studentDraft.family_display_name ?? ''} onChange={(event) => setStudentDraft({ ...studentDraft, family_display_name: event.target.value })} placeholder="Name approved for public display" /></label>
+                <label className="field"><span className="field-label">Family district (optional)</span><select className="select" value={studentDraft.family_district ?? ''} onChange={(event) => setStudentDraft({ ...studentDraft, family_district: event.target.value })}><option value="">Choose district</option>{rwandaDistricts.map((district) => <option key={district} value={district}>{district}</option>)}{studentDraft.family_district && !rwandaDistricts.includes(studentDraft.family_district) && <option value={studentDraft.family_district}>{studentDraft.family_district}</option>}</select></label>
                 <label className="field field-span"><span className="field-label">Student background and story</span><textarea className="textarea" maxLength={500} value={studentDraft.public_bio ?? ''} onChange={(event) => setStudentDraft({ ...studentDraft, public_bio: event.target.value })} placeholder="A short, respectful introduction about the student and their journey" /></label>
                 <label className="field"><span className="field-label">Profile photo</span><span className="image-upload-button"><ImageUp size={15} />{photo?.name || (studentDraft.profile_photo_url || studentDraft.private_photo_path ? 'Choose a new photo' : 'Choose photo')}<input type="file" accept="image/jpeg,image/png,image/webp,image/avif" onChange={(event) => setPhoto(event.target.files?.[0] ?? null)} /></span><span className="field-hint">JPEG, PNG, WebP or AVIF; maximum 5 MB. A photo saved while private is kept in secure staff-only storage until you publish.</span></label>
                 {studentDraft.profile_photo_url && !photo && <div className="student-form-photo"><img src={studentDraft.profile_photo_url} alt="Current profile photo preview" /></div>}
                 {studentDraft.private_photo_path && !studentDraft.profile_photo_url && !photo && privatePhotoPreviewUrl && <div className="student-form-photo"><img src={privatePhotoPreviewUrl} alt="Private student photo preview" /><span className="field-hint">Saved privately — not visible on the public website.</span></div>}
+                {!studentDraft.profile_photo_url && !privatePhotoPreviewUrl && !photo && <div className="student-form-photo"><span className="student-form-avatar student-avatar-initials">{getStudentInitials(`${studentDraft.profile_display_name || studentDraft.first_name || ''} ${studentDraft.last_name ?? ''}`)}</span></div>}
                 <fieldset className="student-publish-control field-span">
                   <legend>Should this profile appear on the public website?</legend>
-                  <p>Choose “Yes” only when the public display name and story are approved to share. Only the public profile details below will be visible.</p>
+                  <p>New profiles are public by default. Keep this private if the name or details are not approved for sharing.</p>
                   <div className="student-publish-options">
                     <label className={`student-publish-option${!studentDraft.is_published ? ' selected' : ''}`}>
                       <input
@@ -643,22 +625,15 @@ export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
                         disabled={!canPublish}
                         onChange={() => setStudentDraft({ ...studentDraft, is_published: true })}
                       />
-                      <span><strong>Yes — publish profile</strong><small>Show the approved public profile on the student directory.</small></span>
+                      <span><strong>Yes — publish profile</strong><small>Show these approved details on the student directory.</small></span>
                     </label>
                   </div>
                   {!canPublish && <span className="field-hint">Your role cannot change publication. Ask an authorized Child Support team member.</span>}
                 </fieldset>
               </div>
-              <p className="field-hint field-span">Date of birth, gender, family details, private notes, health, and individual support status stay in the protected staff record and are never included in the public profile.</p>
+              <p className="field-hint field-span">Existing private profiles stay private. Family display name and district are shown publicly only while this profile is published.</p>
               {error && <div role="alert" className="form-message error field-span">{error}</div>}
               <div className="form-actions field-span"><button className="button button-outline" type="button" onClick={closeModal} disabled={isSaving}>Cancel</button><button className="button button-primary" type="submit" disabled={isSaving}>{isSaving ? 'Saving…' : studentDraft.is_published ? 'Save & publish profile' : 'Save student record'}</button></div>
-            </form>}
-            {modal === 'family' && <form className="form-grid" onSubmit={(event) => void saveFamily(event)}>
-              <label className="field field-span"><span className="field-label">Primary contact name *</span><input className="input" required value={familyDraft.primary_contact_name} onChange={(event) => setFamilyDraft({ ...familyDraft, primary_contact_name: event.target.value })} /></label>
-              <label className="field"><span className="field-label">Household code</span><input className="input" value={familyDraft.household_code} onChange={(event) => setFamilyDraft({ ...familyDraft, household_code: event.target.value })} /></label>
-              <label className="field"><span className="field-label">District</span><input className="input" value={familyDraft.district} onChange={(event) => setFamilyDraft({ ...familyDraft, district: event.target.value })} /></label>
-              {error && <div role="alert" className="form-message error field-span">{error}</div>}
-              <div className="form-actions field-span"><button className="button button-outline" type="button" onClick={() => setModal('student')}>Back</button><button className="button button-primary" type="submit" disabled={isSaving}>{isSaving ? 'Saving…' : 'Save family'}</button></div>
             </form>}
             {modal === 'update' && <form className="form-grid" onSubmit={(event) => void saveUpdate(event)}>
               <label className="field"><span className="field-label">Date *</span><input className="input" type="date" required value={supportDraft.occurred_on ?? currentDate()} onChange={(event) => setSupportDraft({ ...supportDraft, occurred_on: event.target.value })} /></label>

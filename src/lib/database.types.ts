@@ -290,7 +290,6 @@ export type Database = {
       }>;
       families: Table<{
         id: string;
-        household_code: string | null;
         primary_contact_name: string;
         phone: string | null;
         email: string | null;
@@ -306,8 +305,7 @@ export type Database = {
       }>;
       children: Table<{
         id: string;
-        family_id: string;
-        child_code: string | null;
+        family_id: string | null;
         first_name: string;
         last_name: string | null;
         date_of_birth: string | null;
@@ -329,6 +327,8 @@ export type Database = {
         public_bio: string | null;
         public_support_summary: string | null;
         school_stage: string | null;
+        family_display_name: string | null;
+        family_district: string | null;
         is_published: boolean;
         private_photo_path: string | null;
         published_at: string | null;
@@ -361,8 +361,9 @@ export type Database = {
           display_name: string;
           profile_photo_url: string | null;
           public_bio: string | null;
-          public_support_summary: string | null;
           school_stage: string | null;
+          family_display_name: string | null;
+          family_district: string | null;
         };
         Relationships: [];
       };
