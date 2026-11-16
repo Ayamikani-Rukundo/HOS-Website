@@ -334,6 +334,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .field-hint { color: var(--muted); font-size: .7rem; line-height: 1.5; }
 .form-grid { display: grid; gap: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .field-span { grid-column: 1 / -1; }
+.contact-form-panel .form-grid, .volunteer-panel .form-grid { grid-template-columns: minmax(0, 1fr); }
+.contact-form-panel .field-span, .volunteer-panel .field-span { grid-column: auto; }
 .honeypot { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
 .checkbox-field { display: flex; align-items: center; gap: 8px; min-height: 43px; color: var(--ink-soft); font-size: .82rem; }
 .checkbox-field input { accent-color: var(--gold); }
