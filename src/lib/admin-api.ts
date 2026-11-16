@@ -38,7 +38,34 @@ export type AdminTable =
   | 'grant_opportunities'
   | 'staff_accounts';
 
+export type DisplayOrderTable =
+  | 'team_years'
+  | 'team_members'
+  | 'programs'
+  | 'partner_organizations'
+  | 'galleries'
+  | 'campaign_categories'
+  | 'donation_campaigns'
+  | 'contact_details'
+  | 'social_links'
+  | 'donation_methods';
+
 export type DataRow = Record<string, unknown>;
+
+export function isDisplayOrderTable(table: AdminTable): table is DisplayOrderTable {
+  return [
+    'team_years',
+    'team_members',
+    'programs',
+    'partner_organizations',
+    'galleries',
+    'campaign_categories',
+    'donation_campaigns',
+    'contact_details',
+    'social_links',
+    'donation_methods',
+  ].includes(table);
+}
 
 export type StaffAccount = {
   user_id: string;
@@ -171,6 +198,20 @@ export async function listAdminRows(table: AdminTable, search = '') {
         String(value).toLocaleLowerCase().includes(normalizedSearch),
     ),
   );
+}
+
+export async function listDisplayOrderRows(table: DisplayOrderTable) {
+  const rows: DataRow[] = [];
+  const pageSize = 1000;
+  for (let offset = 0; ; offset += pageSize) {
+    const batch = await request<DataRow[]>(
+      table,
+      `select=id,sort_order&order=id.asc&limit=${pageSize}&offset=${offset}`,
+    );
+    rows.push(...batch);
+    if (batch.length < pageSize) break;
+  }
+  return rows;
 }
 
 export async function listStaffAccounts() {

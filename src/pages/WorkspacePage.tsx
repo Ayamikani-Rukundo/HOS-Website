@@ -50,10 +50,13 @@ import {
   uploadPublicImage,
   type AdminTable,
   type DataRow,
+  type DisplayOrderTable,
   type StaffAccount,
+  isDisplayOrderTable,
+  listDisplayOrderRows,
 } from '../lib/admin-api';
 
-type FieldKind = 'text' | 'textarea' | 'number' | 'date' | 'datetime' | 'boolean' | 'select' | 'json' | 'tags' | 'image' | 'image-list' | 'document' | 'private-file' | 'reference';
+type FieldKind = 'text' | 'textarea' | 'number' | 'display-order' | 'date' | 'datetime' | 'boolean' | 'select' | 'json' | 'tags' | 'image' | 'image-list' | 'document' | 'private-file' | 'reference';
 type Field = { key: string; label: string; kind?: FieldKind; required?: boolean; options?: string[]; placeholder?: string; referenceTable?: AdminTable; referenceLabel?: string[] };
 type DocumentAttachment = { path: string; name: string; size: number; type: string };
 type TableConfig = {
@@ -82,25 +85,25 @@ const referenceField = (key: string, label: string, referenceTable: AdminTable, 
 const configs: Record<AdminTable, TableConfig> = {
   organizations: { table: 'organizations', title: 'Organization profile', description: 'Public identity and official contact details.', columns: ['name', 'tagline', 'location', 'email'], fields: [field('name', 'Name', 'text', undefined, true), field('tagline'), field('location'), field('founded_year'), field('mission', 'Mission', 'textarea'), field('email'), field('phone'), field('address', 'Address', 'textarea'), field('currency_code')], canCreate: false, canDelete: false },
   website_sections: { table: 'website_sections', title: 'Website sections', description: 'Titles and structured content for public pages. Saving changes publishes them immediately.', columns: ['section_key', 'title'], fields: [field('section_key', 'Section key', 'text', undefined, true), field('title', 'Title', 'text', undefined, true), field('content', 'Page content', 'json')] },
-  team_years: { table: 'team_years', title: 'Team years', description: 'Annual team rosters. Saving publishes the roster immediately.', columns: ['year_label'], fields: [field('year_label', 'Year', 'text', undefined, true), field('sort_order', 'Display order', 'number')] },
-  team_members: { table: 'team_members', title: 'Team members', description: 'Staff and leadership biographies. Saving publishes the profile immediately.', columns: ['full_name', 'role_title'], fields: [referenceField('team_year_id', 'Team year', 'team_years', ['year_label'], true), field('full_name', 'Full name', 'text', undefined, true), field('role_title', 'Role title'), field('focus_area'), field('biography', 'Biography', 'textarea'), field('email'), field('avatar_url', 'Profile image', 'image'), field('sort_order', 'Display order', 'number')] },
-  programs: { table: 'programs', title: 'Programs', description: 'Public program information and summaries. Saving publishes the program immediately.', columns: ['name', 'slug'], fields: [field('slug', 'URL slug', 'text', undefined, true), field('name', 'Name', 'text', undefined, true), field('summary', 'Summary', 'textarea', undefined, true), field('description', 'Description', 'textarea'), field('impact', 'Focus / impact', 'textarea'), field('feature_label'), field('cover_image_url', 'Cover image', 'image'), field('additional_images', 'Additional images', 'json'), field('objectives', 'Objectives (one per line)', 'json'), field('is_featured', 'Featured', 'boolean'), field('sort_order', 'Display order', 'number')] },
-  partner_organizations: { table: 'partner_organizations', title: 'Partner organizations', description: 'Fundraising manages partner records. Communications and Volunteer Management can view and export the shared records.', columns: ['name', 'focus_area', 'website_url'], fields: [field('name', 'Organization name', 'text', undefined, true), field('focus_area', 'Partnership focus'), field('description', 'About the partnership', 'textarea'), field('logo_url', 'Organization logo', 'image'), field('website_url', 'Website'), field('sort_order', 'Display order', 'number')], createLabel: 'Add partner' },
-  galleries: { table: 'galleries', title: 'Gallery', description: 'Create a photo post with one or more original images. Saving publishes it immediately.', columns: ['title', 'collection_name'], fields: [field('title', 'Post title'), field('additional_images', 'Post images', 'image-list', undefined, true), field('alt_text', 'Alternative text'), field('caption', 'Caption', 'textarea'), field('description', 'Description', 'textarea'), field('collection_name', 'Collection'), field('activity_date', 'Activity date', 'date'), field('sort_order', 'Display order', 'number')] },
+  team_years: { table: 'team_years', title: 'Team years', description: 'Annual team rosters. Saving publishes the roster immediately.', columns: ['year_label'], fields: [field('year_label', 'Year', 'text', undefined, true), field('sort_order', 'Display order', 'display-order', undefined, true)] },
+  team_members: { table: 'team_members', title: 'Team members', description: 'Staff and leadership biographies. Saving publishes the profile immediately.', columns: ['full_name', 'role_title'], fields: [referenceField('team_year_id', 'Team year', 'team_years', ['year_label'], true), field('full_name', 'Full name', 'text', undefined, true), field('role_title', 'Role title'), field('focus_area'), field('biography', 'Biography', 'textarea'), field('email'), field('avatar_url', 'Profile image', 'image'), field('sort_order', 'Display order', 'display-order', undefined, true)] },
+  programs: { table: 'programs', title: 'Programs', description: 'Public program information and summaries. Saving publishes the program immediately.', columns: ['name', 'slug'], fields: [field('slug', 'URL slug', 'text', undefined, true), field('name', 'Name', 'text', undefined, true), field('summary', 'Summary', 'textarea', undefined, true), field('description', 'Description', 'textarea'), field('impact', 'Focus / impact', 'textarea'), field('feature_label'), field('cover_image_url', 'Cover image', 'image'), field('additional_images', 'Additional images', 'json'), field('objectives', 'Objectives (one per line)', 'json'), field('is_featured', 'Featured', 'boolean'), field('sort_order', 'Display order', 'display-order', undefined, true)] },
+  partner_organizations: { table: 'partner_organizations', title: 'Partner organizations', description: 'Fundraising manages partner records. Communications and Volunteer Management can view and export the shared records.', columns: ['name', 'focus_area', 'website_url'], fields: [field('name', 'Organization name', 'text', undefined, true), field('focus_area', 'Partnership focus'), field('description', 'About the partnership', 'textarea'), field('logo_url', 'Organization logo', 'image'), field('website_url', 'Website'), field('sort_order', 'Display order', 'display-order', undefined, true)], createLabel: 'Add partner' },
+  galleries: { table: 'galleries', title: 'Gallery', description: 'Create a photo post with one or more original images. Saving publishes it immediately.', columns: ['title', 'collection_name'], fields: [field('title', 'Post title'), field('additional_images', 'Post images', 'image-list', undefined, true), field('alt_text', 'Alternative text'), field('caption', 'Caption', 'textarea'), field('description', 'Description', 'textarea'), field('collection_name', 'Collection'), field('activity_date', 'Activity date', 'date'), field('sort_order', 'Display order', 'display-order', undefined, true)] },
   events: { table: 'events', title: 'Events', description: 'Publish an event with its date, venue, and optional registration details.', columns: ['title', 'event_date', 'location'], fields: [field('title', 'Event title', 'text', undefined, true), field('summary', 'What will happen?', 'textarea', undefined, true), field('starts_at', 'Date and start time', 'datetime', undefined, true), field('ends_at', 'End time', 'datetime'), field('location', 'Venue', 'text', undefined, true), field('cover_image_url', 'Event image', 'image'), field('registration_url', 'Registration link')] },
   announcements: { table: 'announcements', title: 'Announcements', description: 'Publish a public update on the Events page.', columns: ['title', 'published_at'], fields: [field('title', 'Announcement title', 'text', undefined, true), field('body', 'Announcement', 'textarea', undefined, true), field('cover_image_url', 'Announcement image', 'image')] },
   advocacy_campaigns: { table: 'advocacy_campaigns', title: 'Advocacy campaigns', description: 'Plan a public learning or awareness campaign with its focus, schedule, venue, and optional image.', columns: ['title', 'focus_area', 'starts_at', 'location'], fields: [field('title', 'Campaign title', 'text', undefined, true), field('focus_area', 'Advocacy focus', 'text', undefined, true), field('summary', 'What will participants learn or do?', 'textarea', undefined, true), field('starts_at', 'Date and start time', 'datetime', undefined, true), field('ends_at', 'Date and end time', 'datetime'), field('location', 'Venue', 'text', undefined, true), field('cover_image_url', 'Campaign image', 'image')] },
-  campaign_categories: { table: 'campaign_categories', title: 'Giving area categories', description: 'Categories are entered directly on each giving area.', columns: ['name'], fields: [field('name', 'Name', 'text', undefined, true), field('description', 'Description', 'textarea'), field('icon'), field('sort_order', 'Display order', 'number')] },
-  donation_campaigns: { table: 'donation_campaigns', title: 'Giving areas', description: 'Add the category, description, image, wanted and available amounts, currency, dates, and display order. Saving publishes the giving area on the public Donate page immediately.', columns: ['category', 'target_amount', 'raised_amount'], fields: [field('category', 'Category', 'text', undefined, true), field('description', 'Description', 'textarea', undefined, true), field('cover_image_url', 'Image', 'image', undefined, true), field('target_amount', 'Amount wanted', 'number', undefined, true), field('raised_amount', 'Amount available so far', 'number', undefined, true), field('currency_code', 'Currency', 'text', undefined, true), field('starts_at', 'Start date', 'date'), field('ends_at', 'End date', 'date'), field('sort_order', 'Display order', 'number')] },
-  contact_details: { table: 'contact_details', title: 'Contact details', description: 'Add public email, phone, WhatsApp, map, or website contact information. Saving publishes it on the Contact page and footer.', columns: ['label', 'category', 'value'], fields: [field('label', 'Contact label', 'text', undefined, true), field('value', 'Contact information', 'text', undefined, true), field('category', 'Contact type', 'select', ['email', 'phone', 'whatsapp', 'location', 'website', 'other'], true), field('sort_order', 'Display order', 'number')] },
-  social_links: { table: 'social_links', title: 'Social links', description: 'Verified organization social profiles. Saving publishes them immediately.', columns: ['platform', 'url'], fields: [field('platform', 'Platform', 'text', undefined, true), field('url', 'URL', 'text', undefined, true), field('sort_order', 'Display order', 'number')] },
+  campaign_categories: { table: 'campaign_categories', title: 'Giving area categories', description: 'Categories are entered directly on each giving area.', columns: ['name'], fields: [field('name', 'Name', 'text', undefined, true), field('description', 'Description', 'textarea'), field('icon'), field('sort_order', 'Display order', 'display-order', undefined, true)] },
+  donation_campaigns: { table: 'donation_campaigns', title: 'Giving areas', description: 'Add the category, description, image, wanted and available amounts, currency, dates, and display order. Saving publishes the giving area on the public Donate page immediately.', columns: ['category', 'target_amount', 'raised_amount'], fields: [field('category', 'Category', 'text', undefined, true), field('description', 'Description', 'textarea', undefined, true), field('cover_image_url', 'Image', 'image', undefined, true), field('target_amount', 'Amount wanted', 'number', undefined, true), field('raised_amount', 'Amount available so far', 'number', undefined, true), field('currency_code', 'Currency', 'text', undefined, true), field('starts_at', 'Start date', 'date'), field('ends_at', 'End date', 'date'), field('sort_order', 'Display order', 'display-order', undefined, true)] },
+  contact_details: { table: 'contact_details', title: 'Contact details', description: 'Add public email, phone, WhatsApp, map, or website contact information. Saving publishes it on the Contact page and footer.', columns: ['label', 'category', 'value'], fields: [field('label', 'Contact label', 'text', undefined, true), field('value', 'Contact information', 'text', undefined, true), field('category', 'Contact type', 'select', ['email', 'phone', 'whatsapp', 'location', 'website', 'other'], true), field('sort_order', 'Display order', 'display-order', undefined, true)] },
+  social_links: { table: 'social_links', title: 'Social links', description: 'Verified organization social profiles. Saving publishes them immediately.', columns: ['platform', 'url'], fields: [field('platform', 'Platform', 'text', undefined, true), field('url', 'URL', 'text', undefined, true), field('sort_order', 'Display order', 'display-order', undefined, true)] },
   newsletter_subscribers: { table: 'newsletter_subscribers', title: 'Newsletter subscribers', description: 'Only people who signed up are listed. Unsubscribing removes their record from this list.', columns: ['email', 'consented_at'], fields: [], canCreate: false, deleteLabel: 'Delete subscriber' },
   volunteer_applications: { table: 'volunteer_applications', title: 'Volunteer applications', description: 'Review incoming volunteer interest and update its status.', columns: ['full_name', 'email', 'status', 'created_at'], fields: [field('status', 'Status', 'select', ['new', 'reviewing', 'accepted', 'declined'])], canCreate: false, canDelete: false },
   volunteers: { table: 'volunteers', title: 'Volunteer records', description: 'Volunteer contacts, skills and current status.', columns: ['full_name', 'email', 'status'], fields: [field('full_name', 'Full name', 'text', undefined, true), field('email', 'Email'), field('phone', 'Phone'), field('skills', 'Skills (one per line)', 'json'), field('status', 'Status', 'select', ['applicant', 'active', 'inactive']), field('joined_at', 'Joined date', 'date')] },
   volunteer_assignments: { table: 'volunteer_assignments', title: 'Volunteer assignments', description: 'Event assignments and scheduled volunteer hours.', columns: ['volunteer_id', 'role_title', 'starts_at', 'status'], fields: [referenceField('volunteer_id', 'Volunteer', 'volunteers', ['full_name', 'email'], true), referenceField('event_id', 'Event', 'events', ['title']), field('role_title', 'Assignment role'), field('starts_at', 'Starts at', 'datetime'), field('ends_at', 'Ends at', 'datetime'), field('hours', 'Hours', 'number'), field('status', 'Status', 'select', ['planned', 'confirmed', 'completed', 'cancelled'])] },
   donations: { table: 'donations', title: 'Donation records', description: 'Record verified donations; never treat a browser submission as a payment.', columns: ['amount', 'currency_code', 'status', 'received_at'], fields: [referenceField('campaign_id', 'Campaign', 'donation_campaigns', ['title']), referenceField('donor_id', 'Donor', 'donors', ['full_name', 'organization_name']), field('amount', 'Amount', 'number', undefined, true), field('currency_code', 'Currency', 'select', ['RWF', 'USD', 'EUR', 'GBP', 'KES', 'UGX', 'TZS', 'BIF', 'CDF']), field('status', 'Status', 'select', ['pending', 'completed', 'failed', 'refunded', 'cancelled']), field('payment_provider', 'Payment method', 'select', ['mobile_money', 'bank_transfer', 'cash', 'card', 'cheque', 'other']), field('provider_reference', 'Payment reference'), field('received_at', 'Received at', 'datetime'), field('notes', 'Notes', 'textarea')], canDelete: false, createLabel: 'Record donation' },
   donors: { table: 'donors', title: 'Donors', description: 'Private donor contact records.', columns: ['full_name', 'organization_name', 'is_anonymous'], fields: [field('full_name', 'Donor name'), field('email', 'Email'), field('phone', 'Phone'), field('organization_name', 'Organization'), field('is_anonymous', 'Anonymous donor', 'boolean')], canDelete: false, createLabel: 'Add donor' },
-  donation_methods: { table: 'donation_methods', title: 'Donation methods', description: 'Add official bank, mobile-money, or other giving instructions. Saving makes them available to visitors immediately.', columns: ['label', 'method_type', 'details'], fields: [field('label', 'Method name', 'text', undefined, true), field('method_type', 'Method type', 'select', ['mobile_money', 'bank_transfer', 'other'], true), field('details', 'Account or contact details', 'textarea', undefined, true), field('instructions', 'Instructions', 'textarea'), field('sort_order', 'Display order', 'number')] },
+  donation_methods: { table: 'donation_methods', title: 'Donation methods', description: 'Add official bank, mobile-money, or other giving instructions. Saving makes them available to visitors immediately.', columns: ['label', 'method_type', 'details'], fields: [field('label', 'Method name', 'text', undefined, true), field('method_type', 'Method type', 'select', ['mobile_money', 'bank_transfer', 'other'], true), field('details', 'Account or contact details', 'textarea', undefined, true), field('instructions', 'Instructions', 'textarea'), field('sort_order', 'Display order', 'display-order', undefined, true)] },
   contact_messages: { table: 'contact_messages', title: 'Contact inbox', description: 'Read and follow up on messages received from the public contact form.', columns: ['full_name', 'email', 'subject', 'created_at'], fields: [], readOnly: true, canCreate: false, canDelete: false },
   secretariat_documents: { table: 'secretariat_documents', title: 'Documents & minutes', description: 'Create minutes, memos and internal reports, or upload completed records for secure storage.', columns: ['title', 'document_type', 'meeting_date', 'status'], fields: [field('title', 'Title', 'text', undefined, true), field('document_type', 'Document type', 'select', ['note', 'meeting_minutes', 'memo', 'report']), field('meeting_date', 'Meeting date', 'date'), field('status', 'Status', 'select', ['draft', 'final']), field('body', 'Notes and attached files', 'document')] },
   department_updates: { table: 'department_updates', title: 'Department updates', description: 'Submit a period update for management review.', columns: ['department', 'period_start', 'period_end', 'status'], fields: [field('department', 'Department', 'text', undefined, true), field('period_start', 'Period start', 'date', undefined, true), field('period_end', 'Period end', 'date', undefined, true), field('summary', 'Summary', 'textarea', undefined, true), field('progress', 'Progress notes (one per line)', 'json'), field('status', 'Status', 'select', ['draft', 'submitted', 'reviewed'])] },
@@ -1398,6 +1401,16 @@ function RecordWorkspace({ config }: { config: TableConfig }) {
         if (!Number.isFinite(wanted) || wanted <= 0) missingFields.target_amount = 'Enter an amount wanted greater than zero.';
         if (!Number.isFinite(available) || available < 0) missingFields.raised_amount = 'Enter an amount available of zero or more.';
       }
+      for (const item of config.fields) {
+        if (item.kind !== 'display-order') continue;
+        const raw = String(formData.get(item.key) ?? '');
+        const order = Number(raw);
+        const existingOrder = Number(editing[item.key]);
+        const keepingLegacyOrder = !isNew && raw !== '' && order === existingOrder;
+        if (!Number.isInteger(order) || (order < 1 || order > 25) && !keepingLegacyOrder) {
+          missingFields[item.key] = 'Choose an available display order from 1 to 25.';
+        }
+      }
       if (Object.keys(missingFields).length) {
         setFieldErrors(missingFields);
         return;
@@ -1406,6 +1419,7 @@ function RecordWorkspace({ config }: { config: TableConfig }) {
       for (const item of config.fields) {
         const raw = formData.get(item.key);
         if (item.kind === 'boolean') values[item.key] = raw === 'on';
+        else if (item.kind === 'display-order') values[item.key] = Number(raw);
         else if (item.kind === 'number') values[item.key] = String(raw ?? '').trim() === '' ? item.key === 'sort_order' ? 0 : null : Number(raw);
         else if (item.kind === 'document') {
           let documentBody: unknown;
@@ -1690,7 +1704,7 @@ function RecordWorkspace({ config }: { config: TableConfig }) {
         </div>
       )}
       {!loading && rows.length > pageSize && <div className="pagination"><span className="field-hint">Showing {page * pageSize + 1}–{Math.min((page + 1) * pageSize, rows.length)} of {rows.length}</span><div className="row-actions"><button className="button button-outline button-small" type="button" disabled={page === 0} onClick={() => setPage((current) => current - 1)}>Previous</button><button className="button button-outline button-small" type="button" disabled={(page + 1) * pageSize >= rows.length} onClick={() => setPage((current) => current + 1)}>Next</button></div></div>}
-      {editing && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setEditing(null); }}><div className="modal record-modal" role="dialog" aria-modal="true" aria-labelledby="record-editor-title"><div className="modal-header"><div><div className="eyebrow">{isNew ? 'Create record' : 'Update record'}</div><h2 id="record-editor-title">{config.title}</h2></div><button className="icon-button" type="button" onClick={() => setEditing(null)} aria-label="Close form"><X size={17} /></button></div><form className="modal-body" noValidate onSubmit={(event) => void save(event)}>{['events', 'announcements'].includes(config.table) && <div className="notice"><Shield size={16} /><span>Subscriber email notifications are not configured. Publishing a record will not send email.</span></div>}<div className="form-grid">{config.table === 'contact_details' && <ContactDetailFields key={String(editing.id ?? 'new')} editing={editing} error={fieldErrors} />}{config.fields.filter((item) => item.key !== 'consent_received' && (config.table !== 'contact_details' || !['label', 'value', 'category'].includes(item.key))).map((item) => <FieldEditor key={item.key} field={item} value={getEditorFieldValue(editing, item)} folder={safeName(config.table)} isNew={isNew} error={fieldErrors[item.key]} />)}</div>{error && <div role="alert" className="form-message error">{error}</div>}<div className="record-form-actions"><button type="button" className="button button-outline" disabled={busy} onClick={() => setEditing(null)}>Cancel</button><button type="submit" className="button button-primary" disabled={busy}>{busy ? 'Saving…' : isNew ? 'Create record' : 'Save changes'} <Check size={14} /></button></div></form></div></div>}
+      {editing && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setEditing(null); }}><div className="modal record-modal" role="dialog" aria-modal="true" aria-labelledby="record-editor-title"><div className="modal-header"><div><div className="eyebrow">{isNew ? 'Create record' : 'Update record'}</div><h2 id="record-editor-title">{config.title}</h2></div><button className="icon-button" type="button" onClick={() => setEditing(null)} aria-label="Close form"><X size={17} /></button></div><form className="modal-body" noValidate onSubmit={(event) => void save(event)}>{['events', 'announcements'].includes(config.table) && <div className="notice"><Shield size={16} /><span>Subscriber email notifications are not configured. Publishing a record will not send email.</span></div>}<div className="form-grid">{config.table === 'contact_details' && <ContactDetailFields key={String(editing.id ?? 'new')} editing={editing} error={fieldErrors} />}{config.fields.filter((item) => item.key !== 'consent_received' && (config.table !== 'contact_details' || !['label', 'value', 'category'].includes(item.key))).map((item) => <FieldEditor key={`${item.key}-${String(editing.id ?? 'new')}`} field={item} value={getEditorFieldValue(editing, item)} folder={safeName(config.table)} isNew={isNew} displayOrderTable={isDisplayOrderTable(config.table) ? config.table : null} recordId={typeof editing.id === 'string' ? editing.id : undefined} error={fieldErrors[item.key]} />)}</div>{error && <div role="alert" className="form-message error">{error}</div>}<div className="record-form-actions"><button type="button" className="button button-outline" disabled={busy} onClick={() => setEditing(null)}>Cancel</button><button type="submit" className="button button-primary" disabled={busy}>{busy ? 'Saving…' : isNew ? 'Create record' : 'Save changes'} <Check size={14} /></button></div></form></div></div>}
       {confirmingRow && <ConfirmActionDialog
         title={`${config.deleteLabel ?? 'Delete record'} permanently?`}
         message={config.table === 'newsletter_subscribers'
@@ -1792,7 +1806,7 @@ function ContactDetailFields({ editing, error }: { editing: DataRow; error: Reco
   </>;
 }
 
-function FieldEditor({ field: item, value, folder, isNew, error }: { field: Field; value: unknown; folder: string; isNew: boolean; error?: string }) {
+function FieldEditor({ field: item, value, folder, isNew, displayOrderTable, recordId, error }: { field: Field; value: unknown; folder: string; isNew: boolean; displayOrderTable: DisplayOrderTable | null; recordId?: string; error?: string }) {
   const documentBody = typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : {};
   const privateFileValue = typeof value === 'object' && value !== null && !Array.isArray(value) ? value as { path?: unknown; name?: unknown } : {};
   const imageFieldValue = typeof value === 'object' && value !== null && !Array.isArray(value) ? value as { url?: unknown; position?: unknown } : {};
@@ -2014,6 +2028,11 @@ function FieldEditor({ field: item, value, folder, isNew, error }: { field: Fiel
   if (item.kind === 'reference' && item.referenceTable) {
     return <ReferenceFieldEditor field={item} value={value} error={error} />;
   }
+  if (item.kind === 'display-order') {
+    return displayOrderTable
+      ? <DisplayOrderFieldEditor field={item} table={displayOrderTable} value={value} recordId={recordId} error={error} />
+      : <label className="field"><span className="field-label">{item.label}</span><span role="alert" className="field-error">Display order is unavailable for this record type.</span></label>;
+  }
   const helperText: Record<string, string> = {
     content: 'Enter one section per line, for example: intro: Our community supports every child.',
     additional_images: 'Enter one image URL per line. Add | and a caption after the URL if needed.',
@@ -2033,6 +2052,55 @@ function FieldEditor({ field: item, value, folder, isNew, error }: { field: Fiel
             : <input className="input" name={item.key} type={item.kind === 'date' ? 'date' : item.kind === 'datetime' ? 'datetime-local' : item.kind === 'number' ? 'number' : item.key === 'email' ? 'email' : 'text'} step={item.kind === 'number' ? 'any' : undefined} required={item.required} aria-invalid={Boolean(error)} aria-describedby={error ? `field-error-${item.key}` : undefined} defaultValue={valueForField} placeholder={item.placeholder} /> }
       {item.kind === 'json' && helperText[item.key] && <span className="field-hint">{helperText[item.key]}</span>}
       {error && <span id={`field-error-${item.key}`} role="alert" className="field-error">{error}</span>}
+    </label>
+  );
+}
+
+function DisplayOrderFieldEditor({ field: item, table, value, recordId, error }: { field: Field; table: DisplayOrderTable; value: unknown; recordId?: string; error?: string }) {
+  const currentOrder = value === null || value === undefined || value === '' ? null : Number(value);
+  const [selectedOrder, setSelectedOrder] = useState(currentOrder === null ? '' : String(currentOrder));
+  const [rows, setRows] = useState<DataRow[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    void listDisplayOrderRows(table)
+      .then((result) => {
+        if (!active) return;
+        const hasDuplicateCurrentOrder = currentOrder !== null && result.some((row) =>
+          row.id !== recordId && Number(row.sort_order) === currentOrder,
+        );
+        if (hasDuplicateCurrentOrder) setSelectedOrder('');
+        setRows(result);
+      })
+      .catch((loadError: unknown) => {
+        if (active) setLoadError(loadError instanceof Error ? loadError.message : 'Unable to load display order choices.');
+      })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [currentOrder, recordId, table]);
+
+  const usedOrders = new Set(rows.flatMap((row) => {
+    if (row.id === recordId || row.sort_order === null || row.sort_order === undefined || String(row.sort_order).trim() === '') return [];
+    const order = Number(row.sort_order);
+    return Number.isInteger(order) ? [order] : [];
+  }));
+  const availableOrders = Array.from({ length: 25 }, (_, index) => index + 1).filter((order) => !usedOrders.has(order));
+  if (currentOrder !== null && !usedOrders.has(currentOrder) && !availableOrders.includes(currentOrder)) {
+    availableOrders.push(currentOrder);
+    availableOrders.sort((left, right) => left - right);
+  }
+
+  return (
+    <label className="field">
+      <span className="field-label">{item.label} *</span>
+      <select className="select" name={item.key} required value={selectedOrder} onChange={(event) => setSelectedOrder(event.target.value)} disabled={loading || Boolean(loadError)} aria-invalid={Boolean(error)} aria-describedby={error ? `field-error-${item.key}` : undefined}>
+        <option value="">{loading ? 'Loading display orders…' : 'Choose a display order'}</option>
+        {availableOrders.map((order) => <option value={order} key={order}>{order}{order < 1 || order > 25 ? ' (current)' : ''}</option>)}
+      </select>
+      {error && <span id={`field-error-${item.key}`} role="alert" className="field-error">{error}</span>}
+      {loadError && <span role="alert" className="field-hint form-error-text">Display order choices could not be loaded: {loadError}</span>}
     </label>
   );
 }
