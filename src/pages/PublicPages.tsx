@@ -479,8 +479,7 @@ export function EventsPage() {
   const announcementItems = announcements.map((announcement) => ({ id: announcement.id, title: announcement.title, summary: announcement.body, details: announcement.body, image: announcement.cover_image_url, label: formatDate(announcement.published_at) }));
   return (
     <>
-      <PageIntro eyebrow="Events, advocacy & announcements" title="HOS events and updates." description="Explore public events, advocacy campaigns, and announcements from Heart of Sympathy." />
-      <section className="section" style={{ background: 'var(--page-soft)', borderBlock: '1px solid var(--line)' }}>
+      <section className="section-tight" style={{ background: 'var(--page-soft)', borderBlock: '1px solid var(--line)' }}>
         <div className="wrap"><div className="section-heading"><div className="eyebrow">Announcements</div><h2>Updates from HOS.</h2></div>{announcementItems.length > 0 ? <ConnectedList items={announcementItems} onSelect={setSelectedAnnouncement} /> : <EmptyState>No announcements have been published.</EmptyState>}</div>
       </section>
       <section className="wrap section-tight">
@@ -552,7 +551,7 @@ export function DonatePage() {
 }
 
 export function ContactPage() {
-  const { organization, contactDetails, socialLinks, sections } = useSiteContent();
+  const { organization, contactDetails, socialLinks } = useSiteContent();
   const [formState, setFormState] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -598,8 +597,7 @@ export function ContactPage() {
 
   return (
     <>
-      <PageIntro eyebrow="Contact" title={sections.contact?.title ?? 'Contact Heart of Sympathy.'} description={typeof sections.contact?.content.intro === 'string' ? sections.contact.content.intro : 'Send a message about student support, partnerships, volunteering, or another HOS matter.'} />
-      <section className="wrap section-tight">
+      <section className="wrap section-tight contact-main-section">
         <div className="contact-grid">
           <div>
             <div className="section-heading"><div className="eyebrow">HOS contact details</div><h2>Kigali, Rwanda</h2><p>Use the contact details below to reach Heart of Sympathy.</p></div>

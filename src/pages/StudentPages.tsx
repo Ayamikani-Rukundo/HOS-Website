@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, ArrowRight, GraduationCap, HeartHandshake, Search, UsersRound } from 'lucide-react';
+import { ArrowLeft, ArrowRight, GraduationCap, Search, UsersRound } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { getSupabaseClient, isSupabaseConfigured } from '../lib/supabase';
 import { getStudentInitials } from '../lib/student-profile';
@@ -77,16 +77,12 @@ export function StudentDirectoryPage() {
     <div className="student-public-page">
       <header className="student-directory-hero">
         <div className="wrap">
-          <div className="eyebrow"><HeartHandshake size={15} /> Student directory</div>
           <h1>Our children</h1>
-          <p>These profiles share approved introductions to students supported by HOS.</p>
-          <div className="student-privacy-note">Profiles show only approved details. Family display names and districts appear only when entered for publication; contact details, dates of birth, health records, and safeguarding notes stay private.</div>
         </div>
       </header>
 
-      <section className="wrap section student-directory-section" aria-label="Student profiles">
+      <section className="wrap section student-directory-section" aria-label="Our children">
         <div className="student-directory-toolbar">
-          <div><span className="eyebrow">HOS student support</span><h2>Student profiles</h2></div>
           <label className="student-search"><Search size={16} /><span className="sr-only">Search students</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search students" /></label>
         </div>
         {syncWarning && <p className="field-hint" role="status">{syncWarning}</p>}

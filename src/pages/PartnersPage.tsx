@@ -19,15 +19,10 @@ export function PartnersPage() {
     <>
       <header className="student-directory-hero partner-directory-hero">
         <div className="wrap">
-          <div className="eyebrow"><Handshake size={15} /> Partner organizations</div>
           <h1>HOS partners</h1>
-          <p>Organizations working with Heart of Sympathy to support students and families.</p>
         </div>
       </header>
       <section className="wrap section student-directory-section" aria-label="Partner organizations">
-        <div className="student-directory-toolbar">
-          <div><span className="eyebrow">Partnerships</span><h2>Organizations working with HOS</h2></div>
-        </div>
         {isLoading
           ? <div className="loading-inline"><span className="loading-dot" /> Loading partners…</div>
           : partners.length
