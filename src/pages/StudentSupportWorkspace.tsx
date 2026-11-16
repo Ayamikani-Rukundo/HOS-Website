@@ -102,7 +102,7 @@ const removePrivateStudentPhoto = async (client: ReturnType<typeof getSupabaseCl
   if (error) throw new Error(error.message);
 };
 
-export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
+export function StudentSupportWorkspace({ roles, readOnly = false }: { roles: string[]; readOnly?: boolean }) {
   const { user } = useAuth();
   const client = getSupabaseClient();
   const canPublish = roles.some((role) => ['admin', 'director', 'program_manager', 'case_worker', 'child_protection', 'education_support', 'health_nutrition'].includes(role));
@@ -200,6 +200,7 @@ export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
   }, [assistance, selectedId, updates]);
 
   const openStudentForm = (student?: Student) => {
+    if (readOnly) return;
     const profile = student ? profiles.find((item) => item.child_id === student.id) : null;
     setPrivatePhotoPreviewUrl(null);
     setError(null);
@@ -221,6 +222,7 @@ export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
     setModal('student');
   };
   const openUpdateForm = (update?: SupportUpdate) => {
+    if (readOnly) return;
     if (!selectedStudent) return;
     setPrivatePhotoPreviewUrl(null);
     setSupportDraft(update
@@ -238,6 +240,7 @@ export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
 
   const saveStudent = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (readOnly) return;
     if (!studentDraft.first_name?.trim()) {
       setError('Enter the student’s first name.');
       return;
@@ -409,6 +412,7 @@ export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
 
   const saveUpdate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (readOnly) return;
     if (!selectedStudent || !supportDraft.title?.trim()) {
       setError('Add a clear title for this support update.');
       return;
@@ -440,6 +444,7 @@ export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
   };
 
   const deleteStudent = async (student: Student) => {
+    if (readOnly) return;
     setIsSaving(true);
     setError(null);
     const profile = profiles.find((item) => item.child_id === student.id);
@@ -496,7 +501,7 @@ export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
             <button type="button" className="workspace-back-link" onClick={() => setSelectedId(null)}><ArrowLeft size={14} /> All students</button>
             <div className="student-workspace-title-row">
               <div><span className="eyebrow">Student support record</span><h2>{selectedStudent.first_name} {selectedStudent.last_name}</h2><p>{selectedStudent.school_name || 'School not recorded'}{selectedStudent.grade_level ? ` · ${selectedStudent.grade_level}` : ''}</p></div>
-              <div className="student-workspace-actions"><button className="button button-outline" type="button" onClick={() => openStudentForm(selectedStudent)}><Pencil size={14} /> Edit student &amp; profile</button><button className="button button-primary" type="button" onClick={() => openUpdateForm()}><Plus size={15} /> Log support</button></div>
+              {!readOnly && <div className="student-workspace-actions"><button className="button button-outline" type="button" onClick={() => openStudentForm(selectedStudent)}><Pencil size={14} /> Edit student &amp; profile</button><button className="button button-primary" type="button" onClick={() => openUpdateForm()}><Plus size={15} /> Log support</button></div>}
             </div>
           </div>
           {error && !modal && <div role="alert" className="form-message error">{error}</div>}
@@ -511,14 +516,16 @@ export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
                 <span><strong>Enrollment</strong>{selectedStudent.enrollment_status.replaceAll('_', ' ')}</span>
                 <span><strong>Student status</strong>{selectedStudent.status}</span>
               </div>
-              <button
-                type="button"
-                className={`student-public-status student-publication-action${selectedProfile?.is_published ? ' published' : ''}`}
-                onClick={() => openStudentForm(selectedStudent)}
-                aria-label={selectedProfile?.is_published ? 'Edit or unpublish public student profile' : 'Prepare or publish student profile'}
-              >
-                <span className="status-dot" />{selectedProfile?.is_published ? 'Published · edit or unpublish' : 'Private · prepare or publish'}
-              </button>
+              {readOnly
+                ? <span className={`student-public-status${selectedProfile?.is_published ? ' published' : ''}`}><span className="status-dot" />{selectedProfile?.is_published ? 'Published' : 'Private'}</span>
+                : <button
+                  type="button"
+                  className={`student-public-status student-publication-action${selectedProfile?.is_published ? ' published' : ''}`}
+                  onClick={() => openStudentForm(selectedStudent)}
+                  aria-label={selectedProfile?.is_published ? 'Edit or unpublish public student profile' : 'Prepare or publish student profile'}
+                >
+                  <span className="status-dot" />{selectedProfile?.is_published ? 'Published · edit or unpublish' : 'Private · prepare or publish'}
+                </button>}
               <span className={`student-status-badge${selectedStudent.status === 'active' ? ' active' : ''}`}>
                 {selectedStudent.status === 'active' ? 'Active' : selectedStudent.status === 'inactive' ? 'Inactive' : selectedStudent.status}
               </span>
@@ -527,7 +534,7 @@ export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
             <article className="panel student-timeline-panel">
               <div className="panel-heading"><div><h3>Support journey</h3><p>{timeline.length} recorded milestone{timeline.length === 1 ? '' : 's'}</p></div><button className="icon-button" type="button" onClick={() => void refresh().catch((loadError: unknown) => setError(getErrorMessage(loadError)))} aria-label="Refresh support history"><RefreshCw size={15} /></button></div>
               {timeline.length ? <ol className="student-staff-timeline">{timeline.map((item) => (
-                <li key={`${item.category}-${item.id}`}><span className="student-timeline-dot" /><div><div className="student-timeline-meta"><span>{item.category.replaceAll('_', ' ')}</span><time>{item.date ? new Date(item.date).toLocaleDateString('en', { dateStyle: 'medium', timeZone: 'Africa/Kigali' }) : 'Date not recorded'}</time>{item.source === 'update' && <button className="student-update-edit" type="button" onClick={() => openUpdateForm(updates.find((update) => update.id === item.id))}>Edit</button>}</div><h4>{item.title}</h4>{item.detail && <p>{item.detail}</p>}</div></li>
+                <li key={`${item.category}-${item.id}`}><span className="student-timeline-dot" /><div><div className="student-timeline-meta"><span>{item.category.replaceAll('_', ' ')}</span><time>{item.date ? new Date(item.date).toLocaleDateString('en', { dateStyle: 'medium', timeZone: 'Africa/Kigali' }) : 'Date not recorded'}</time>{!readOnly && item.source === 'update' && <button className="student-update-edit" type="button" onClick={() => openUpdateForm(updates.find((update) => update.id === item.id))}>Edit</button>}</div><h4>{item.title}</h4>{item.detail && <p>{item.detail}</p>}</div></li>
               ))}</ol> : <div className="student-empty-state compact"><HeartHandshake size={22} /><p>Support milestones and assistance records will appear here as the team records them.</p></div>}
             </article>
           </div>
@@ -535,7 +542,7 @@ export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
       ) : (
         <>
           <div className="student-workspace-heading">
-            <div className="student-workspace-title-row"><div><span className="eyebrow">One student at a time</span><h2>Student support</h2><p>Keep each student’s profile, family context, and support journey together.</p></div><button className="button button-primary" type="button" onClick={() => openStudentForm()}><Plus size={15} /> Add student</button></div>
+            <div className="student-workspace-title-row"><div><span className="eyebrow">{readOnly ? 'Read-only student records' : 'One student at a time'}</span><h2>Student support</h2><p>Keep each student’s profile, family context, and support journey together.</p></div>{!readOnly && <button className="button button-primary" type="button" onClick={() => openStudentForm()}><Plus size={15} /> Add student</button>}</div>
             <div className="student-workspace-toolbar"><label className="student-search"><Search size={16} /><span className="sr-only">Search students</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search students or schools" /></label><span className="student-count">{students.length} student{students.length === 1 ? '' : 's'}</span></div>
           </div>
           {error && <div role="alert" className="form-message error">{error}</div>}
@@ -549,7 +556,7 @@ export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
                   <span className="student-staff-avatar">{profile?.profile_photo_url ? <img src={profile.profile_photo_url} alt="" /> : <span className="student-avatar-initials">{getStudentInitials(studentName)}</span>}</span>
                   <span className="student-staff-card-copy"><strong>{studentName}</strong><span>{student.school_name || 'School not recorded'}</span><small>{count} support record{count === 1 ? '' : 's'}</small><span className="student-status-badges"><span className={`student-status-badge${student.status === 'active' ? ' active' : ''}`}>{student.status === 'active' ? 'Active' : student.status === 'inactive' ? 'Inactive' : student.status}</span><span className={`student-status-badge${profile?.is_published ? ' published' : ''}`}>{profile?.is_published ? 'Published' : 'Private'}</span></span></span><ArrowRight size={17} />
                 </button>
-                <div className="student-staff-card-actions">
+                {!readOnly && <div className="student-staff-card-actions">
                   <button
                     className="button button-danger button-small student-card-delete-trigger"
                     type="button"
@@ -560,14 +567,14 @@ export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
                   >
                     <Trash2 size={13} /> Delete
                   </button>
-                </div>
+                </div>}
               </div>;
             })}</div>
-              : <div className="student-empty-state"><GraduationCap size={26} /><h3>{students.length ? 'No students match your search' : 'Start with a student record'}</h3><p>{students.length ? 'Try another name or school.' : 'Add a student to create a secure profile and record their support over time.'}</p>{!students.length && <button className="button button-primary" type="button" onClick={() => openStudentForm()}><Plus size={15} /> Add first student</button>}</div>}
+              : <div className="student-empty-state"><GraduationCap size={26} /><h3>{students.length ? 'No students match your search' : readOnly ? 'No student records available' : 'Start with a student record'}</h3><p>{students.length ? 'Try another name or school.' : readOnly ? 'Student records will appear here when available.' : 'Add a student to create a secure profile and record their support over time.'}</p>{!readOnly && !students.length && <button className="button button-primary" type="button" onClick={() => openStudentForm()}><Plus size={15} /> Add first student</button>}</div>}
         </>
       )}
 
-      {confirmingStudent && !selectedStudent && <div className="modal-backdrop confirm-action-backdrop student-delete-backdrop" role="presentation" onMouseDown={(event) => {
+      {!readOnly && confirmingStudent && !selectedStudent && <div className="modal-backdrop confirm-action-backdrop student-delete-backdrop" role="presentation" onMouseDown={(event) => {
         if (event.target === event.currentTarget && !isSaving) setConfirmDeleteId(null);
       }}>
         <section className="modal confirm-action-dialog student-delete-dialog" role="alertdialog" aria-modal="true" aria-labelledby="student-delete-title" aria-describedby="student-delete-message">
@@ -582,7 +589,7 @@ export function StudentSupportWorkspace({ roles }: { roles: string[] }) {
         </section>
       </div>}
 
-      {modal && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeModal(); }}>
+      {!readOnly && modal && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeModal(); }}>
         <div className="modal modal-wide student-workspace-modal" role="dialog" aria-modal="true" aria-labelledby="student-modal-title">
           <div className="modal-header"><div><div className="eyebrow">Student support</div><h2 id="student-modal-title">{modal === 'student' ? studentDraft.id ? 'Edit student & profile' : 'Add a student' : supportDraft.id ? 'Edit support milestone' : 'Record a support milestone'}</h2></div><button className="icon-button" type="button" onClick={closeModal} disabled={isSaving} aria-label="Close"><X size={17} /></button></div>
           <div className="modal-body">

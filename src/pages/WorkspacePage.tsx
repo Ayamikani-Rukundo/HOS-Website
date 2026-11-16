@@ -830,7 +830,7 @@ const progressGroups: Array<{ key: string; label: string; tables: AdminTable[] }
   { key: 'secretariat', label: 'Secretariat', tables: ['secretariat_documents'] },
   { key: 'volunteer_management', label: 'Volunteer Management', tables: ['volunteer_applications', 'volunteers', 'volunteer_assignments', 'contact_details', 'social_links', 'contact_messages', 'newsletter_subscribers'] },
   { key: 'finance', label: 'Finance', tables: ['donations', 'donors', 'finance_transactions', 'donation_methods', 'grant_opportunities'] },
-  { key: 'programs', label: 'Programs / Child Support', tables: ['programs', 'student_support_updates', 'assistance_records'] },
+  { key: 'programs', label: 'Programs / Child Support', tables: ['programs', 'children', 'student_support_updates', 'assistance_records'] },
   { key: 'fundraising', label: 'Fundraising / Grants', tables: ['donation_campaigns', 'donors', 'donation_methods', 'grant_opportunities', 'partner_organizations'] },
   { key: 'advocacy', label: 'Advocacy', tables: ['events', 'announcements', 'advocacy_campaigns'] },
 ];
@@ -850,14 +850,11 @@ function isPortalProgressMetric(value: unknown): value is PortalProgressMetric {
 function AdminProgressWorkspace() {
   const client = getSupabaseClient();
   const [selectedGroup, setSelectedGroup] = useState(progressGroups[0].key);
+  const [selectedTable, setSelectedTable] = useState<AdminTable | null>(null);
   const [metrics, setMetrics] = useState<PortalProgressMetric[]>([]);
   const [history, setHistory] = useState<DataRow[]>([]);
-  const [selectedEvents, setSelectedEvents] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
-  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const activeGroup = progressGroups.find((group) => group.key === selectedGroup) ?? progressGroups[0];
   const refresh = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -912,66 +909,41 @@ function AdminProgressWorkspace() {
 
   const tableNames = new Set<string>(activeGroup.tables);
   const visibleHistory = history.filter((row) => typeof row.table_name === 'string' && tableNames.has(row.table_name));
-  const selectVisible = (checked: boolean) => setSelectedEvents((current) => {
-    const visibleIds = visibleHistory.map((row) => String(row.id)).filter(Boolean);
-    return checked ? [...new Set([...current, ...visibleIds])] : current.filter((id) => !visibleIds.includes(id));
-  });
-  const deleteSelected = async () => {
-    if (!selectedEvents.length) return;
-    setBusy(true);
-    setError(null);
-    setMessage(null);
-    try {
-      const eventIds = selectedEvents.map(Number);
-      if (eventIds.some((id) => !Number.isSafeInteger(id) || id <= 0)) {
-        throw new Error('Some selected audit IDs are invalid. Refresh the history and try again.');
-      }
-      const { data, error: deleteError } = await client.rpc('delete_audit_events_by_ids', { p_event_ids: eventIds });
-      if (deleteError) throw new Error(deleteError.message);
-      const refreshed = await refresh();
-      setSelectedEvents([]);
-      setConfirmDeleteOpen(false);
-      if (!refreshed) throw new Error('History was deleted, but progress could not be refreshed. Use Refresh to check the latest data.');
-      if (typeof data !== 'number' || data !== selectedEvents.length) {
-        throw new Error(`Only ${typeof data === 'number' ? data : 0} of ${selectedEvents.length} selected audit entries were deleted. The list has been refreshed.`);
-      }
-      setMessage(`${data} selected ${data === 1 ? 'entry was' : 'entries were'} deleted.`);
-    } catch (deleteError) {
-      setConfirmDeleteOpen(false);
-      setError(deleteError instanceof Error ? deleteError.message : 'Selected audit history could not be deleted.');
-    } finally {
-      setBusy(false);
-    }
-  };
 
   return <section className="admin-progress-workspace">
     <div className="filter-row" role="tablist" aria-label="Select team progress">
-      {progressGroups.map((group) => <button key={group.key} type="button" role="tab" aria-selected={selectedGroup === group.key} className={`button button-small ${selectedGroup === group.key ? 'button-primary' : 'button-outline'}`} onClick={() => { setSelectedGroup(group.key); setSelectedEvents([]); setMessage(null); }}>{group.label}</button>)}
+      {progressGroups.map((group) => <button key={group.key} type="button" role="tab" aria-selected={selectedGroup === group.key} className={`button button-small ${selectedGroup === group.key ? 'button-primary' : 'button-outline'}`} onClick={() => { setSelectedGroup(group.key); setSelectedTable(null); }}>{group.label}</button>)}
     </div>
     {error && <div role="alert" className="form-message error">{error}</div>}
-    {message && <div role="status" className="form-message success">{message}</div>}
     <section className="panel">
-      <div className="panel-heading"><div><h2>{activeGroup.label} progress</h2><p>Live totals for the current records in this workspace.</p></div><button type="button" className="button button-outline button-small" onClick={() => void refresh()} disabled={loading}><RefreshCw size={14} className={loading ? 'spin' : ''} /> Refresh</button></div>
+      <div className="panel-heading"><div><h2>{activeGroup.label} progress</h2><p>Live totals. Select an area to inspect its records in read-only mode.</p></div><button type="button" className="button button-outline button-small" onClick={() => void refresh()} disabled={loading}><RefreshCw size={14} className={loading ? 'spin' : ''} /> Refresh</button></div>
       {loading ? <div className="loading-inline"><LoaderCircle className="spin" size={16} /> Loading progress…</div> : <div className="portal-overview">{activeGroup.tables.map((table) => {
         const metric = metrics.find((item) => item.portal_key === activeGroup.key && item.table_name === table);
-        return <article className="metric-card" key={table}><div className="metric-number">{metric?.record_count.toLocaleString() ?? '—'}</div><div className="metric-label">{configs[table].title}</div></article>;
+        return <button
+          className={`metric-card portal-summary-card admin-progress-metric${selectedTable === table ? ' selected' : ''}`}
+          key={table}
+          type="button"
+          aria-pressed={selectedTable === table}
+          onClick={() => setSelectedTable(table)}
+        ><div className="metric-number">{metric?.record_count.toLocaleString() ?? '—'}</div><div className="metric-label">{configs[table].title}</div><ArrowRight size={15} /></button>;
       })}</div>}
     </section>
+    {selectedTable && !loading && <section className="panel admin-progress-records">
+      <div className="panel-heading">
+        <div><h2>{configs[selectedTable].title}</h2><p>Read-only record preview. You can inspect records here, but cannot edit or delete them.</p></div>
+        <button type="button" className="button button-outline button-small" onClick={() => setSelectedTable(null)}>Back to progress</button>
+      </div>
+      {selectedTable === 'children'
+        ? <StudentSupportWorkspace roles={['admin']} readOnly />
+        : <RecordWorkspace config={{ ...configs[selectedTable], readOnly: true, canCreate: false, canDelete: false }} />}
+    </section>}
     <section className="panel">
-      <div className="panel-heading"><div><h2>{activeGroup.label} history</h2><p>Select one or more entries to permanently delete.</p></div><button type="button" className="button button-danger button-small" disabled={busy || selectedEvents.length === 0} onClick={() => setConfirmDeleteOpen(true)}>{`Delete selected (${selectedEvents.length})`} <Trash2 size={14} /></button></div>
-      {visibleHistory.length > 0 ? <div className="table-wrap"><table className="data-table"><thead><tr><th><input type="checkbox" aria-label="Select all visible history" checked={visibleHistory.length > 0 && visibleHistory.every((row) => selectedEvents.includes(String(row.id)))} onChange={(event) => selectVisible(event.target.checked)} /></th><th>Date</th><th>Area</th><th>Action</th><th>Record ID</th></tr></thead><tbody>{visibleHistory.map((row) => {
+      <div className="panel-heading"><div><h2>{activeGroup.label} history</h2><p>Recent changes recorded for this team’s tables.</p></div></div>
+      {visibleHistory.length > 0 ? <div className="table-wrap"><table className="data-table"><thead><tr><th>Date</th><th>Area</th><th>Action</th><th>Record ID</th></tr></thead><tbody>{visibleHistory.map((row) => {
         const id = String(row.id);
-        return <tr key={id}><td data-label="Select"><input type="checkbox" aria-label={`Select ${readable(row.table_name)} audit entry`} checked={selectedEvents.includes(id)} onChange={(event) => setSelectedEvents((current) => event.target.checked ? [...new Set([...current, id])] : current.filter((value) => value !== id))} /></td><td data-label="Date">{typeof row.occurred_at === 'string' ? new Date(row.occurred_at).toLocaleString() : '—'}</td><td data-label="Area">{readable(row.table_name)}</td><td data-label="Action">{readable(row.action)}</td><td data-label="Record ID">{readable(row.record_id)}</td></tr>;
+        return <tr key={id}><td data-label="Date">{typeof row.occurred_at === 'string' ? new Date(row.occurred_at).toLocaleString() : '—'}</td><td data-label="Area">{readable(row.table_name)}</td><td data-label="Action">{readable(row.action)}</td><td data-label="Record ID">{readable(row.record_id)}</td></tr>;
       })}</tbody></table></div> : <div className="empty-state">No recent history is recorded for this team.</div>}
     </section>
-    {confirmDeleteOpen && <ConfirmActionDialog
-      title="Delete selected audit history?"
-      message={`This permanently deletes ${selectedEvents.length} selected ${selectedEvents.length === 1 ? 'entry' : 'entries'}. This action cannot be undone.`}
-      confirmLabel={busy ? 'Deleting…' : 'Delete history'}
-      busy={busy}
-      onCancel={() => setConfirmDeleteOpen(false)}
-      onConfirm={() => void deleteSelected()}
-    />}
   </section>;
 }
 
@@ -1275,6 +1247,7 @@ function RecordWorkspace({ config }: { config: TableConfig }) {
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [editing, setEditing] = useState<DataRow | null>(null);
+  const [selectedPreview, setSelectedPreview] = useState<DataRow | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [page, setPage] = useState(0);
   const [copyMessage, setCopyMessage] = useState<string | null>(null);
@@ -1640,6 +1613,13 @@ function RecordWorkspace({ config }: { config: TableConfig }) {
 
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const confirmingRow = rows.find((row) => row.id === confirmingId) ?? null;
+  const previewFields = selectedPreview
+    ? config.fields.length
+      ? config.fields.map((item) => ({ label: item.label, value: selectedPreview[item.key] }))
+      : Object.entries(selectedPreview)
+        .filter(([key]) => key !== 'id')
+        .map(([key, value]) => ({ label: key.replaceAll('_', ' '), value }))
+    : [];
   return (
     <section className="panel record-panel">
       <div className="toolbar">
@@ -1649,7 +1629,22 @@ function RecordWorkspace({ config }: { config: TableConfig }) {
       {copyMessage && <div role={copyMessage.startsWith('Could not') || copyMessage.startsWith('Clipboard') ? 'alert' : 'status'} className={`form-message subscriber-copy-message${copyMessage.startsWith('Could not') || copyMessage.startsWith('Clipboard') ? ' error' : ''}`}>{copyMessage}</div>}
       {rows.length === 250 && <p className="field-hint">The table loads at most 250 records at a time. Use search to find other records or narrow an export.</p>}
       {error && <div role="alert" className="form-message error">{error}</div>}
-      {loading ? <div className="loading-inline"><LoaderCircle className="spin" size={16} /> Loading records…</div> : rows.length === 0 ? <div className="empty-state">{config.table === 'newsletter_subscribers' ? 'No subscribed email addresses are currently on the list.' : 'No records are available in this area. Add the first record or adjust your search.'}</div> : ['galleries', 'partner_organizations', 'programs', 'events', 'announcements', 'donation_campaigns', 'team_members'].includes(config.table) ? (
+      {loading ? <div className="loading-inline"><LoaderCircle className="spin" size={16} /> Loading records…</div> : rows.length === 0 ? <div className="empty-state">{config.table === 'newsletter_subscribers' ? 'No subscribed email addresses are currently on the list.' : `No records are available in this area.${config.readOnly ? '' : ' Add the first record or adjust your search.'}`}</div> : config.readOnly && config.table === 'donation_methods' ? (
+        <div className="donation-method-list">
+          {visibleRows.map((row, index) => {
+            const status = [
+              row.is_active === false ? 'Inactive' : null,
+              row.is_public === false ? 'Private' : null,
+            ].filter((value): value is string => value !== null);
+            return <article className="donation-method-option" key={String(row.id ?? index)}>
+              <div className="card-kicker">{String(row.method_type ?? 'Giving method').replaceAll('_', ' ')}{status.length ? ` · ${status.join(' · ')}` : ''}</div>
+              <h3>{String(row.label ?? 'Untitled method')}</h3>
+              <p>{String(row.details ?? 'No details have been added.')}</p>
+              {typeof row.instructions === 'string' && row.instructions && <p className="field-hint">{row.instructions}</p>}
+            </article>;
+          })}
+        </div>
+      ) : ['galleries', 'partner_organizations', 'programs', 'events', 'announcements', 'donation_campaigns', 'team_members'].includes(config.table) ? (
         <div className="record-preview-grid">
           {visibleRows.map((row, index) => {
             const rowId = String(row.id ?? index);
@@ -1664,6 +1659,7 @@ function RecordWorkspace({ config }: { config: TableConfig }) {
                 <div className="record-preview-actions">
                   {canEdit && <button className="button button-outline button-small" type="button" onClick={() => { setEditing(row); setIsNew(false); setFieldErrors({}); setError(null); }}><Pencil size={13} /> Edit</button>}
                   {canEdit && config.canDelete !== false && <button className="button button-danger button-small" type="button" onClick={() => setConfirmingId(confirmingId === rowId ? null : rowId)} disabled={busy}><Trash2 size={13} /> Delete</button>}
+                  {config.readOnly && <button className="button button-outline button-small" type="button" onClick={() => setSelectedPreview(row)}><Eye size={13} /> View record</button>}
                 </div>
               </div>
             </article>;
@@ -1671,7 +1667,7 @@ function RecordWorkspace({ config }: { config: TableConfig }) {
         </div>
       ) : (
         <div className="table-wrap">
-          <table className="data-table"><thead><tr>{config.columns.map((column) => <th key={column}>{column.replaceAll('_', ' ')}</th>)}{!config.readOnly && <th>Actions</th>}</tr></thead><tbody>
+          <table className="data-table"><thead><tr>{config.columns.map((column) => <th key={column}>{column.replaceAll('_', ' ')}</th>)}{config.readOnly ? <th>Preview</th> : <th>Actions</th>}</tr></thead><tbody>
             {visibleRows.map((row, index) => {
               const rowId = String(row.id ?? index);
               const removeLabel = config.deleteLabel ?? 'Delete record permanently';
@@ -1680,7 +1676,7 @@ function RecordWorkspace({ config }: { config: TableConfig }) {
               return (
                 <tr key={rowId}>
                   {config.columns.map((column) => <td className="truncate" key={column} data-label={column.replaceAll('_', ' ')}>{readable(row[column])}</td>)}
-                  {!config.readOnly && <td data-label="Actions">
+                  {config.readOnly ? <td data-label="Preview"><button className="button button-outline button-small" type="button" onClick={() => setSelectedPreview(row)}><Eye size={13} /> View</button></td> : <td data-label="Actions">
                     <div className="row-actions">
                       {config.table === 'secretariat_documents' && <>
                         <button className="icon-button" type="button" onClick={() => void exportDocument(row)} aria-label="Download Word document" title="Download Word document"><ArrowDownToLine size={14} /></button>
@@ -1699,6 +1695,12 @@ function RecordWorkspace({ config }: { config: TableConfig }) {
         </div>
       )}
       {!loading && rows.length > pageSize && <div className="pagination"><span className="field-hint">Showing {page * pageSize + 1}–{Math.min((page + 1) * pageSize, rows.length)} of {rows.length}</span><div className="row-actions"><button className="button button-outline button-small" type="button" disabled={page === 0} onClick={() => setPage((current) => current - 1)}>Previous</button><button className="button button-outline button-small" type="button" disabled={(page + 1) * pageSize >= rows.length} onClick={() => setPage((current) => current + 1)}>Next</button></div></div>}
+      {selectedPreview && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedPreview(null); }}>
+        <section className="modal record-modal record-readonly-modal" role="dialog" aria-modal="true" aria-labelledby="record-preview-title">
+          <div className="modal-header"><div><div className="eyebrow">Read-only record preview</div><h2 id="record-preview-title">{String(selectedPreview.title ?? selectedPreview.name ?? selectedPreview.full_name ?? config.title)}</h2></div><button className="icon-button" type="button" onClick={() => setSelectedPreview(null)} aria-label="Close record preview"><X size={17} /></button></div>
+          <div className="modal-body"><dl className="record-readonly-fields">{previewFields.map((item) => <div key={item.label}><dt>{item.label}</dt><dd>{readable(item.value)}</dd></div>)}</dl></div>
+        </section>
+      </div>}
       {editing && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setEditing(null); }}><div className="modal record-modal" role="dialog" aria-modal="true" aria-labelledby="record-editor-title"><div className="modal-header"><div><div className="eyebrow">{isNew ? 'Create record' : 'Update record'}</div><h2 id="record-editor-title">{config.title}</h2></div><button className="icon-button" type="button" onClick={() => setEditing(null)} aria-label="Close form"><X size={17} /></button></div><form className="modal-body" noValidate onSubmit={(event) => void save(event)}>{['events', 'announcements'].includes(config.table) && <div className="notice"><Shield size={16} /><span>Subscriber email notifications are not configured. Publishing a record will not send email.</span></div>}<div className="form-grid">{config.table === 'contact_details' && <ContactDetailFields key={String(editing.id ?? 'new')} editing={editing} error={fieldErrors} />}{config.fields.filter((item) => item.key !== 'consent_received' && (config.table !== 'contact_details' || !['label', 'value', 'category'].includes(item.key))).map((item) => <FieldEditor key={`${item.key}-${String(editing.id ?? 'new')}`} field={item} value={getEditorFieldValue(editing, item)} folder={safeName(config.table)} isNew={isNew} displayOrderTable={isDisplayOrderTable(config.table) ? config.table : null} recordId={typeof editing.id === 'string' ? editing.id : undefined} error={fieldErrors[item.key]} />)}</div>{error && <div role="alert" className="form-message error">{error}</div>}<div className="record-form-actions"><button type="button" className="button button-outline" disabled={busy} onClick={() => setEditing(null)}>Cancel</button><button type="submit" className="button button-primary" disabled={busy}>{busy ? 'Saving…' : isNew ? 'Create record' : 'Save changes'} <Check size={14} /></button></div></form></div></div>}
       {confirmingRow && <ConfirmActionDialog
         title={`${config.deleteLabel ?? 'Delete record'} permanently?`}

@@ -736,6 +736,16 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .admin-dashboard-welcome { padding: 20px; }
 .admin-dashboard-welcome > p { max-width: 720px; color: var(--ink-soft); line-height: 1.7; }
 .admin-progress-workspace { display: grid; gap: 14px; }
+.admin-progress-metric { position: relative; text-align: left; cursor: pointer; transition: border-color .18s ease, transform .18s ease, background .18s ease; }
+.admin-progress-metric:hover, .admin-progress-metric.selected { transform: translateY(-2px); border-color: rgba(var(--green-rgb), .5); }
+.admin-progress-metric:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+.admin-progress-records { display: grid; gap: 12px; }
+.admin-progress-records > .student-workspace { min-width: 0; }
+.record-readonly-fields { display: grid; gap: 10px; margin: 0; }
+.record-readonly-fields > div { display: grid; gap: 5px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.record-readonly-fields > div:last-child { border-bottom: 0; }
+.record-readonly-fields dt { color: var(--muted); font-size: .68rem; font-weight: 600; text-transform: capitalize; }
+.record-readonly-fields dd { margin: 0; color: var(--ink-soft); font-size: .78rem; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
 .portal-guide { display: grid; gap: 14px; margin-top: 18px; }
 .portal-guide-heading { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 18px 20px; border: 1px solid var(--line); border-radius: 14px; background: linear-gradient(120deg, rgba(var(--green-rgb), .12), transparent 70%), var(--surface); }
 .portal-guide-heading h2 { margin: 5px 0; font-size: 1.2rem; }
