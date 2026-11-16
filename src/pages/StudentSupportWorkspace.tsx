@@ -123,8 +123,12 @@ export function StudentSupportWorkspace({ roles, readOnly = false }: { roles: st
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
+    const childrenQuery = client.from('children').select('id, first_name, last_name, school_name, grade_level, enrollment_status, status');
+    const childrenRequest = readOnly
+      ? childrenQuery.order('first_name')
+      : childrenQuery.neq('status', 'closed').order('first_name');
     const [childrenResult, profilesResult, updatesResult, assistanceResult] = await Promise.all([
-      client.from('children').select('id, first_name, last_name, school_name, grade_level, enrollment_status, status').neq('status', 'closed').order('first_name'),
+      childrenRequest,
       client.from('student_public_profiles').select('id, child_id, slug, display_name, profile_photo_url, public_bio, school_stage, family_display_name, family_district, is_published, private_photo_path'),
       client.from('student_support_updates').select('id, child_id, occurred_on, category, title, private_notes').order('occurred_on', { ascending: false }),
       listAdminRows('assistance_records'),
@@ -143,7 +147,7 @@ export function StudentSupportWorkspace({ roles, readOnly = false }: { roles: st
       description: typeof row.description === 'string' ? row.description : null,
     })));
     setIsLoading(false);
-  }, [client]);
+  }, [client, readOnly]);
 
   useEffect(() => {
     let active = true;
@@ -542,7 +546,7 @@ export function StudentSupportWorkspace({ roles, readOnly = false }: { roles: st
       ) : (
         <>
           <div className="student-workspace-heading">
-            <div className="student-workspace-title-row"><div><span className="eyebrow">{readOnly ? 'Read-only student records' : 'One student at a time'}</span><h2>Student support</h2><p>Keep each student’s profile, family context, and support journey together.</p></div>{!readOnly && <button className="button button-primary" type="button" onClick={() => openStudentForm()}><Plus size={15} /> Add student</button>}</div>
+            <div className="student-workspace-title-row"><div><span className="eyebrow">{readOnly ? 'Read-only student records' : 'One student at a time'}</span><h2>Student support</h2><p>{readOnly ? 'All student records, including private profiles, drafts, and closed records.' : 'Keep each student’s profile, family context, and support journey together.'}</p></div>{!readOnly && <button className="button button-primary" type="button" onClick={() => openStudentForm()}><Plus size={15} /> Add student</button>}</div>
             <div className="student-workspace-toolbar"><label className="student-search"><Search size={16} /><span className="sr-only">Search students</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search students or schools" /></label><span className="student-count">{students.length} student{students.length === 1 ? '' : 's'}</span></div>
           </div>
           {error && <div role="alert" className="form-message error">{error}</div>}

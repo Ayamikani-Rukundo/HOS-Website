@@ -5,6 +5,7 @@ import {
   ArrowUpRight,
   BadgeCheck,
   CalendarDays,
+  Camera,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -583,6 +584,15 @@ export function ContactPage() {
   };
 
   const details = contactDetails.filter((item) => item.is_public);
+  const organizationEmailIsListed = organization?.email
+    ? details.some((item) => item.category === 'email' && item.value.trim().toLocaleLowerCase() === organization.email?.trim().toLocaleLowerCase())
+    : false;
+  const organizationPhoneDigits = organization?.phone?.replace(/\D/g, '');
+  const organizationPhoneIsListed = organizationPhoneDigits
+    ? details.some((item) => ['phone', 'whatsapp'].includes(item.category) && item.value.replace(/\D/g, '') === organizationPhoneDigits)
+    : false;
+  const instagramLink = socialLinks.find((social) => social.platform.toLocaleLowerCase().includes('instagram'));
+  const otherSocialLinks = socialLinks.filter((social) => social.id !== instagramLink?.id);
   const location = organization?.location ?? siteConfig.location;
   const mapUrl = `https://www.openstreetmap.org/search?query=${encodeURIComponent(location)}`;
 
@@ -592,7 +602,7 @@ export function ContactPage() {
       <section className="wrap section-tight">
         <div className="contact-grid">
           <div>
-            <div className="section-heading"><div className="eyebrow">HOS contact details</div><h2 style={{ fontSize: '2rem' }}>Kigali, Rwanda</h2><p>Use the contact details below to reach Heart of Sympathy.</p></div>
+            <div className="section-heading"><div className="eyebrow">HOS contact details</div><h2>Kigali, Rwanda</h2><p>Use the contact details below to reach Heart of Sympathy.</p></div>
             <div className="contact-list">
               {details.map((item) => {
                 const href = contactDetailHref(item.category, item.value);
@@ -600,11 +610,19 @@ export function ContactPage() {
                 const icon = item.category === 'email' ? <Mail size={17} /> : ['phone', 'whatsapp'].includes(item.category) ? <MessageCircle size={17} /> : item.category === 'website' ? <Globe2 size={17} /> : <MapPin size={17} />;
                 return <div className="contact-line" key={item.id}>{icon}<span>{item.label}<br /><strong>{href ? <a href={href} {...(opensNewTab ? { target: '_blank', rel: 'noreferrer' } : {})}>{item.value}</a> : item.value}</strong></span></div>;
               })}
-              {organization?.email && <div className="contact-line"><Mail size={17} /><span>Email<br /><a href={`mailto:${organization.email}`}><strong>{organization.email}</strong></a></span></div>}
-              {organization?.phone && <div className="contact-line"><MessageCircle size={17} /><span>Phone<br /><a href={`tel:${organization.phone}`}><strong>{organization.phone}</strong></a></span></div>}
+              {organization?.email && !organizationEmailIsListed && <div className="contact-line"><Mail size={17} /><span>Email<br /><a href={`mailto:${organization.email}`}><strong>{organization.email}</strong></a></span></div>}
+              {organization?.phone && !organizationPhoneIsListed && <div className="contact-line"><MessageCircle size={17} /><span>Phone<br /><a href={`tel:${organization.phone}`}><strong>{organization.phone}</strong></a></span></div>}
               <div className="contact-line"><MapPin size={17} /><span>Location<br /><strong>{location}</strong></span></div>
             </div>
-            {socialLinks.length > 0 && <div className="social-list">{socialLinks.map((social) => <a className="button button-outline button-small" key={social.id} href={social.url} target="_blank" rel="noreferrer">{social.platform} <ArrowUpRight size={12} /></a>)}</div>}
+            {socialLinks.length > 0 && <div className="contact-social-area">
+              <div className="eyebrow">Follow HOS</div>
+              {instagramLink && <a className="contact-instagram-link" href={instagramLink.url} target="_blank" rel="noreferrer">
+                <span className="contact-instagram-icon"><Camera size={21} /></span>
+                <span className="contact-instagram-copy"><strong>Follow us on Instagram</strong><small>See our latest work, activities, and community updates.</small></span>
+                <ArrowUpRight size={17} />
+              </a>}
+              {otherSocialLinks.length > 0 && <div className="contact-social-links">{otherSocialLinks.map((social) => <a className="button button-outline button-small contact-social-link" key={social.id} href={social.url} target="_blank" rel="noreferrer">{social.platform} <ArrowUpRight size={12} /></a>)}</div>}
+            </div>}
             <div className="map-panel"><div className="map-content"><MapPin size={25} /><strong>{location}</strong><a className="text-link" href={mapUrl} target="_blank" rel="noreferrer">Open map <ArrowUpRight size={13} /></a></div></div>
           </div>
           <div className="panel contact-form-panel">
