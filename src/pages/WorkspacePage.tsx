@@ -66,6 +66,7 @@ type TableConfig = {
   columns: string[];
   fields: Field[];
   readOnly?: boolean;
+  fetchAllRecords?: boolean;
   canCreate?: boolean;
   canDelete?: boolean;
   deleteLabel?: string;
@@ -971,7 +972,7 @@ function AdminProgressWorkspace() {
       </div>
       {selectedTable === 'children'
         ? <StudentSupportWorkspace roles={['admin']} readOnly />
-        : <RecordWorkspace config={{ ...configs[selectedTable], readOnly: true, canCreate: false, canDelete: false }} />}
+        : <RecordWorkspace config={{ ...configs[selectedTable], readOnly: true, fetchAllRecords: true, canCreate: false, canDelete: false }} />}
     </section>}
     <section className="panel">
       <div className="panel-heading"><div><h2>{activeGroup.label} history</h2><p>Select one or more entries to permanently delete.</p></div><button type="button" className="button button-danger button-small" disabled={busy || selectedEvents.length === 0} onClick={() => setConfirmDeleteOpen(true)}>{`Delete selected (${selectedEvents.length})`} <Trash2 size={14} /></button></div>
@@ -1305,7 +1306,7 @@ function RecordWorkspace({ config }: { config: TableConfig }) {
     setLoading(true);
     setError(null);
     try {
-      const result = await listAdminRows(config.table, term);
+      const result = await listAdminRows(config.table, term, { fetchAll: config.fetchAllRecords });
       setRows(result);
       setPage(0);
     } catch (loadError) {
@@ -1313,13 +1314,10 @@ function RecordWorkspace({ config }: { config: TableConfig }) {
     } finally {
       setLoading(false);
     }
-  }, [config.table, config.title]);
+  }, [config.fetchAllRecords, config.table, config.title]);
   useEffect(() => {
-    void listAdminRows(config.table)
-      .then(setRows)
-      .catch((loadError: unknown) => setError(loadError instanceof Error ? loadError.message : `Unable to load ${config.title.toLowerCase()}.`))
-      .finally(() => setLoading(false));
-  }, [config.table, config.title]);
+    void refresh('');
+  }, [refresh]);
   useEffect(() => {
     searchRef.current = search;
   }, [search]);
@@ -1671,7 +1669,7 @@ function RecordWorkspace({ config }: { config: TableConfig }) {
         <div className="toolbar-right">{config.table === 'newsletter_subscribers' && <button type="button" className="button button-outline button-small" onClick={() => void copySubscriberEmails()} disabled={loading || copyingEmails}><ClipboardCopy size={14} /> {copyingEmails ? 'Copying…' : 'Copy subscriber emails'}</button>}<button type="button" className="button button-outline button-small" onClick={() => void exportExcel()} disabled={loading || rows.length === 0}><ArrowDownToLine size={14} /> CSV / Excel</button>{canEdit && !config.readOnly && config.canCreate !== false && <button type="button" className="button button-primary button-small" onClick={startNew}><Plus size={14} /> {config.createLabel ?? 'Add record'}</button>}</div>
       </div>
       {copyMessage && <div role={copyMessage.startsWith('Could not') || copyMessage.startsWith('Clipboard') ? 'alert' : 'status'} className={`form-message subscriber-copy-message${copyMessage.startsWith('Could not') || copyMessage.startsWith('Clipboard') ? ' error' : ''}`}>{copyMessage}</div>}
-      {rows.length === 250 && <p className="field-hint">The table loads at most 250 records at a time. Use search to find other records or narrow an export.</p>}
+      {!config.fetchAllRecords && rows.length === 250 && <p className="field-hint">The table loads at most 250 records at a time. Use search to find other records or narrow an export.</p>}
       {error && <div role="alert" className="form-message error">{error}</div>}
       {loading ? <div className="loading-inline"><LoaderCircle className="spin" size={16} /> Loading records…</div> : rows.length === 0 ? <div className="empty-state">{config.table === 'newsletter_subscribers' ? 'No subscribed email addresses are currently on the list.' : `No records are available in this area.${config.readOnly ? '' : ' Add the first record or adjust your search.'}`}</div> : config.readOnly && config.table === 'donation_methods' ? (
         <div className="donation-method-list">

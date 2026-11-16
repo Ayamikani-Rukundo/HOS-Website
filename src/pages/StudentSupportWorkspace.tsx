@@ -131,7 +131,7 @@ export function StudentSupportWorkspace({ roles, readOnly = false }: { roles: st
       childrenRequest,
       client.from('student_public_profiles').select('id, child_id, slug, display_name, profile_photo_url, public_bio, school_stage, family_display_name, family_district, is_published, private_photo_path'),
       client.from('student_support_updates').select('id, child_id, occurred_on, category, title, private_notes').order('occurred_on', { ascending: false }),
-      listAdminRows('assistance_records'),
+      listAdminRows('assistance_records', '', { fetchAll: readOnly }),
     ]);
     const loadError = childrenResult.error ?? profilesResult.error ?? updatesResult.error;
     if (loadError) throw new Error(`Student workspace could not be loaded: ${loadError.message}`);

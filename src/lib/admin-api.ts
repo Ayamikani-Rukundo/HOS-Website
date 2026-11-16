@@ -121,7 +121,7 @@ const request = async <T>(
   return result as T;
 };
 
-export async function listAdminRows(table: AdminTable, search = '') {
+export async function listAdminRows(table: AdminTable, search = '', options: { fetchAll?: boolean } = {}) {
   if (table === 'staff_accounts') {
     const { data, error } = await getSupabaseClient().rpc('get_staff_directory');
     if (error) throw new Error(`Unable to load staff accounts: ${error.message}`);
@@ -186,9 +186,17 @@ export async function listAdminRows(table: AdminTable, search = '') {
   } else {
     filters.push('order=created_at.desc');
   }
-  filters.push('limit=250');
-
-  const rows = await request<DataRow[]>(table, filters.join('&'));
+  const pageSize = options.fetchAll ? 1000 : 250;
+  if (!options.fetchAll) filters.push(`limit=${pageSize}`);
+  const rows: DataRow[] = [];
+  for (let offset = 0; ; offset += pageSize) {
+    const query = options.fetchAll
+      ? `${filters.join('&')}&limit=${pageSize}&offset=${offset}`
+      : filters.join('&');
+    const batch = await request<DataRow[]>(table, query);
+    rows.push(...batch);
+    if (!options.fetchAll || batch.length < pageSize) break;
+  }
   const normalizedSearch = search.trim().toLocaleLowerCase();
   if (!normalizedSearch) return rows;
   return rows.filter((row) =>
