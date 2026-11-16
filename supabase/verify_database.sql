@@ -2,7 +2,9 @@
 -- 20261106080000_live_admin_progress.sql and
 -- 20261107200000_secretariat_document_formats.sql,
 -- 20261107210000_align_admin_portal_progress.sql, and
--- 20261107220000_advocacy_portal.sql.
+-- 20261107220000_advocacy_portal.sql,
+-- 20261116225000_streamline_student_support.sql, and
+-- 20261117010000_admin_student_support_read_access.sql.
 -- These checks are read-only and do not display contact, child, donor, or case data.
 
 with expected_tables(table_name) as (
@@ -47,7 +49,9 @@ with expected_tables(table_name) as (
     ('website_page_views'),
     ('notification_preferences'),
     ('grant_opportunities'),
-    ('advocacy_campaigns')
+    ('advocacy_campaigns'),
+    ('student_public_profiles'),
+    ('student_support_updates')
 )
 select
   expected_tables.table_name,
@@ -146,6 +150,23 @@ union all
 select
   'admin portal progress function',
   to_regprocedure('public.get_admin_portal_metrics()') is not null
+union all
+select
+  'admin read-only student support policies',
+  (
+    select count(*) = 4
+    from pg_policies
+    where schemaname = 'public'
+      and cmd = 'SELECT'
+      and roles @> array['authenticated']::name[]
+      and qual like '%has_any_role%admin%'
+      and policyname in (
+        'admins read child records',
+        'admins read student profiles',
+        'admins read student support updates',
+        'admins read assistance records'
+      )
+  )
 union all
 select
   'advocacy portal role is allowed',
