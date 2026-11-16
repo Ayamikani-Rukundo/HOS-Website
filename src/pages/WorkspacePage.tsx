@@ -853,8 +853,12 @@ function AdminProgressWorkspace() {
   const [selectedTable, setSelectedTable] = useState<AdminTable | null>(null);
   const [metrics, setMetrics] = useState<PortalProgressMetric[]>([]);
   const [history, setHistory] = useState<DataRow[]>([]);
+  const [selectedEvents, setSelectedEvents] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const activeGroup = progressGroups.find((group) => group.key === selectedGroup) ?? progressGroups[0];
   const refresh = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -909,12 +913,44 @@ function AdminProgressWorkspace() {
 
   const tableNames = new Set<string>(activeGroup.tables);
   const visibleHistory = history.filter((row) => typeof row.table_name === 'string' && tableNames.has(row.table_name));
+  const selectVisible = (checked: boolean) => setSelectedEvents((current) => {
+    const visibleIds = visibleHistory.map((row) => String(row.id)).filter(Boolean);
+    return checked ? [...new Set([...current, ...visibleIds])] : current.filter((id) => !visibleIds.includes(id));
+  });
+  const deleteSelected = async () => {
+    if (!selectedEvents.length) return;
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const eventIds = selectedEvents.map(Number);
+      if (eventIds.some((id) => !Number.isSafeInteger(id) || id <= 0)) {
+        throw new Error('Some selected audit IDs are invalid. Refresh the history and try again.');
+      }
+      const { data, error: deleteError } = await client.rpc('delete_audit_events_by_ids', { p_event_ids: eventIds });
+      if (deleteError) throw new Error(deleteError.message);
+      const refreshed = await refresh();
+      setSelectedEvents([]);
+      setConfirmDeleteOpen(false);
+      if (!refreshed) throw new Error('History was deleted, but progress could not be refreshed. Use Refresh to check the latest data.');
+      if (typeof data !== 'number' || data !== selectedEvents.length) {
+        throw new Error(`Only ${typeof data === 'number' ? data : 0} of ${selectedEvents.length} selected audit entries were deleted. The list has been refreshed.`);
+      }
+      setMessage(`${data} selected ${data === 1 ? 'entry was' : 'entries were'} deleted.`);
+    } catch (deleteError) {
+      setConfirmDeleteOpen(false);
+      setError(deleteError instanceof Error ? deleteError.message : 'Selected audit history could not be deleted.');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return <section className="admin-progress-workspace">
     <div className="filter-row" role="tablist" aria-label="Select team progress">
-      {progressGroups.map((group) => <button key={group.key} type="button" role="tab" aria-selected={selectedGroup === group.key} className={`button button-small ${selectedGroup === group.key ? 'button-primary' : 'button-outline'}`} onClick={() => { setSelectedGroup(group.key); setSelectedTable(null); }}>{group.label}</button>)}
+      {progressGroups.map((group) => <button key={group.key} type="button" role="tab" aria-selected={selectedGroup === group.key} className={`button button-small ${selectedGroup === group.key ? 'button-primary' : 'button-outline'}`} onClick={() => { setSelectedGroup(group.key); setSelectedTable(null); setSelectedEvents([]); setMessage(null); }}>{group.label}</button>)}
     </div>
     {error && <div role="alert" className="form-message error">{error}</div>}
+    {message && <div role="status" className="form-message success">{message}</div>}
     <section className="panel">
       <div className="panel-heading"><div><h2>{activeGroup.label} progress</h2><p>Live totals. Select an area to inspect its records in read-only mode.</p></div><button type="button" className="button button-outline button-small" onClick={() => void refresh()} disabled={loading}><RefreshCw size={14} className={loading ? 'spin' : ''} /> Refresh</button></div>
       {loading ? <div className="loading-inline"><LoaderCircle className="spin" size={16} /> Loading progress…</div> : <div className="portal-overview">{activeGroup.tables.map((table) => {
@@ -938,12 +974,20 @@ function AdminProgressWorkspace() {
         : <RecordWorkspace config={{ ...configs[selectedTable], readOnly: true, canCreate: false, canDelete: false }} />}
     </section>}
     <section className="panel">
-      <div className="panel-heading"><div><h2>{activeGroup.label} history</h2><p>Recent changes recorded for this team’s tables.</p></div></div>
-      {visibleHistory.length > 0 ? <div className="table-wrap"><table className="data-table"><thead><tr><th>Date</th><th>Area</th><th>Action</th><th>Record ID</th></tr></thead><tbody>{visibleHistory.map((row) => {
+      <div className="panel-heading"><div><h2>{activeGroup.label} history</h2><p>Select one or more entries to permanently delete.</p></div><button type="button" className="button button-danger button-small" disabled={busy || selectedEvents.length === 0} onClick={() => setConfirmDeleteOpen(true)}>{`Delete selected (${selectedEvents.length})`} <Trash2 size={14} /></button></div>
+      {visibleHistory.length > 0 ? <div className="table-wrap"><table className="data-table"><thead><tr><th><input type="checkbox" aria-label="Select all visible history" checked={visibleHistory.length > 0 && visibleHistory.every((row) => selectedEvents.includes(String(row.id)))} onChange={(event) => selectVisible(event.target.checked)} /></th><th>Date</th><th>Area</th><th>Action</th><th>Record ID</th></tr></thead><tbody>{visibleHistory.map((row) => {
         const id = String(row.id);
-        return <tr key={id}><td data-label="Date">{typeof row.occurred_at === 'string' ? new Date(row.occurred_at).toLocaleString() : '—'}</td><td data-label="Area">{readable(row.table_name)}</td><td data-label="Action">{readable(row.action)}</td><td data-label="Record ID">{readable(row.record_id)}</td></tr>;
+        return <tr key={id}><td data-label="Select"><input type="checkbox" aria-label={`Select ${readable(row.table_name)} audit entry`} checked={selectedEvents.includes(id)} onChange={(event) => setSelectedEvents((current) => event.target.checked ? [...new Set([...current, id])] : current.filter((value) => value !== id))} /></td><td data-label="Date">{typeof row.occurred_at === 'string' ? new Date(row.occurred_at).toLocaleString() : '—'}</td><td data-label="Area">{readable(row.table_name)}</td><td data-label="Action">{readable(row.action)}</td><td data-label="Record ID">{readable(row.record_id)}</td></tr>;
       })}</tbody></table></div> : <div className="empty-state">No recent history is recorded for this team.</div>}
     </section>
+    {confirmDeleteOpen && <ConfirmActionDialog
+      title="Delete selected audit history?"
+      message={`This permanently deletes ${selectedEvents.length} selected ${selectedEvents.length === 1 ? 'entry' : 'entries'}. This action cannot be undone.`}
+      confirmLabel={busy ? 'Deleting…' : 'Delete history'}
+      busy={busy}
+      onCancel={() => setConfirmDeleteOpen(false)}
+      onConfirm={() => void deleteSelected()}
+    />}
   </section>;
 }
 
