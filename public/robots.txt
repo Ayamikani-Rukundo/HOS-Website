@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://hos-website-kohl.vercel.app/sitemap.xml
+Sitemap: https://hos-visit.vercel.app/sitemap.xml
