@@ -42,6 +42,14 @@ function App() {
 function AppShell() {
   const { pathname } = useLocation();
   const { user, signOut } = useAuth();
+  useEffect(() => {
+    const robotsMeta = document.querySelector<HTMLMetaElement>('meta[name="robots"]') ?? document.createElement('meta');
+    robotsMeta.name = 'robots';
+    robotsMeta.content = /^\/(portal|workspace|dashboard|unsubscribe)(\/|$)/.test(pathname)
+      ? 'noindex, nofollow'
+      : 'index, follow';
+    if (!robotsMeta.isConnected) document.head.append(robotsMeta);
+  }, [pathname]);
   const isInternalRoute = /^\/(portal|workspace|dashboard)(\/|$)/.test(pathname);
   const isWorkspaceRoute = /^\/(workspace|dashboard)(\/|$)/.test(pathname);
   const wasInInternalRoute = useRef(isInternalRoute);

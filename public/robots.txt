@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://hos-website-kohl.vercel.app/sitemap.xml
