@@ -54,11 +54,11 @@ function NavigationLinks({ onNavigate }: { onNavigate?: () => void }) {
                 About <ChevronDown size={14} aria-hidden="true" />
               </summary>
               <div className="work-menu-panel">
-                <NavLink to="/about" end className={({ isActive }) => `work-menu-link${isActive ? ' active' : ''}`} onClick={closeMenu}>
-                  <span>Our story</span><ArrowUpRight size={14} aria-hidden="true" />
-                </NavLink>
                 <NavLink to="/team" className={({ isActive }) => `work-menu-link${isActive ? ' active' : ''}`} onClick={closeMenu}>
                   <span>Meet the team</span><ArrowUpRight size={14} aria-hidden="true" />
+                </NavLink>
+                <NavLink to="/about" end className={({ isActive }) => `work-menu-link${isActive ? ' active' : ''}`} onClick={closeMenu}>
+                  <span>Our story</span><ArrowUpRight size={14} aria-hidden="true" />
                 </NavLink>
               </div>
             </details>

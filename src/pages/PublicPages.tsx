@@ -126,6 +126,83 @@ function MissionVision({ compact = false }: { compact?: boolean }) {
   );
 }
 
+const foundingStory = [
+  {
+    title: 'A Christmas Eve thought',
+    text: 'On Christmas Eve, Manasse Niyitanga thought about sharing the occasion with his family. He also wanted to share with children, so he went to spend time and share what he could with them.',
+  },
+  {
+    title: 'A moment shared with children',
+    text: 'That simple act made him wonder what could happen if care for children did not end with one day, but became something people could continue doing together.',
+  },
+  {
+    title: 'Sarah sees the possibility',
+    text: 'Manasse brought the idea to his best friend, Sarah. She felt it was a meaningful idea, and together they began imagining how the care could become a lasting effort.',
+  },
+  {
+    title: 'Learning at ISOMO Academy',
+    text: 'Later, through the ISOMO Academy program, Manasse learned more about how organizations are formed and sustained. The experience helped him see how an idea could be shaped into practical, ongoing work.',
+  },
+  {
+    title: 'The idea becomes a shared plan',
+    text: 'After returning from the first ISOMO camp, Manasse went back to Sarah with a clearer proposal: create an organization that could keep serving children and families. They began working through what that could look like.',
+  },
+  {
+    title: 'A name with a heart',
+    text: 'Finding a name took time. Then Sarah suggested “Heart of Sympathy.” Manasse chose it as the name for the program they were building, giving their shared idea an identity.',
+  },
+  {
+    title: 'From one act to lasting care',
+    text: 'That beginning grew into Heart of Sympathy: a continuing commitment to walk alongside students and families through education, health, mentorship, and practical support.',
+  },
+];
+
+function FoundingStoryJourney() {
+  const [activeStep, setActiveStep] = useState(0);
+  const step = foundingStory[activeStep];
+
+  return (
+    <section className="section founding-story-section">
+      <div className="wrap">
+        <div className="section-heading founding-story-heading">
+          <div className="eyebrow">Where it began</div>
+          <h2>One Christmas Eve. A lasting commitment.</h2>
+          <p>Follow the steps that turned a simple act of sharing into Heart of Sympathy.</p>
+        </div>
+        <div className="founding-story">
+          <div className="founding-story-steps" aria-label="Founding story chapters">
+            {foundingStory.map((item, index) => (
+              <button
+                className={`founding-story-step${index === activeStep ? ' active' : ''}${index < activeStep ? ' visited' : ''}`}
+                key={item.title}
+                type="button"
+                aria-pressed={index === activeStep}
+                aria-label={`Step ${index + 1}: ${item.title}`}
+                onClick={() => setActiveStep(index)}
+              >
+                <span>{String(index + 1).padStart(2, '0')}</span>
+                <strong>{item.title}</strong>
+              </button>
+            ))}
+          </div>
+          <article className="founding-story-card" aria-live="polite">
+            <div className="founding-story-card-top">
+              <span className="founding-story-count">STEP {String(activeStep + 1).padStart(2, '0')} / {String(foundingStory.length).padStart(2, '0')}</span>
+              <div className="founding-story-controls">
+                <button className="icon-button" type="button" aria-label="Previous story step" disabled={activeStep === 0} onClick={() => setActiveStep((current) => Math.max(0, current - 1))}><ArrowLeft size={16} /></button>
+                <button className="icon-button" type="button" aria-label="Next story step" disabled={activeStep === foundingStory.length - 1} onClick={() => setActiveStep((current) => Math.min(foundingStory.length - 1, current + 1))}><ArrowRight size={16} /></button>
+              </div>
+            </div>
+            <h3>{step.title}</h3>
+            <p>{step.text}</p>
+            <div className="founding-story-progress" aria-hidden="true"><span style={{ width: `${((activeStep + 1) / foundingStory.length) * 100}%` }} /></div>
+          </article>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function ProgramCards({ compact = false }: { compact?: boolean }) {
   const { programs, isLoading } = useSiteContent();
   const shown = compact ? programs.slice(0, 3) : programs;
@@ -302,6 +379,7 @@ export function AboutPage() {
   return (
     <>
       <PageIntro eyebrow="About Heart of Sympathy" title={sections.about?.title ?? 'About Heart of Sympathy'} description={biography} />
+      <FoundingStoryJourney />
       <section className="wrap section-tight"><MissionVision /></section>
       <section className="section" style={{ background: 'var(--page-soft)', borderBlock: '1px solid var(--line)' }}>
         <div className="wrap">
