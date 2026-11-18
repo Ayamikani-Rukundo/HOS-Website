@@ -327,6 +327,7 @@ export function TeamPage() {
     role_title: string | null;
     focus_area: string | null;
     biography: string | null;
+    email: string | null;
     avatar_url: string | null;
     avatar_object_position: string;
   } | null>(null);
@@ -376,6 +377,7 @@ export function TeamPage() {
             <div className="team-member-modal-avatar">{selectedMember.avatar_url ? <img src={selectedMember.avatar_url} alt={selectedMember.full_name} style={{ objectPosition: selectedMember.avatar_object_position || '50% 50%' }} /> : <span>{selectedMember.full_name.split(/\s+/).slice(0, 2).map((part) => part[0]).join('')}</span>}</div>
             {selectedMember.focus_area && <div className="card-kicker">{selectedMember.focus_area}</div>}
             <p className="team-member-biography">{selectedMember.biography || 'More information about this team member will be added soon.'}</p>
+            {selectedMember.email && <a className="team-member-email" href={`mailto:${selectedMember.email}`}><Mail size={15} aria-hidden="true" />{selectedMember.email}</a>}
           </div>
         </section>
       </div>}

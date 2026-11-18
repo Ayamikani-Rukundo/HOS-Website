@@ -37,6 +37,7 @@ type TeamYear = {
     role_title: string | null;
     focus_area: string | null;
     biography: string | null;
+    email: string | null;
     avatar_url: string | null;
     avatar_object_position: string;
     sort_order: number;
@@ -243,7 +244,7 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
       client.from('organizations').select('name,tagline,location,founded_year,mission,email,phone,address,logo_url').limit(1).maybeSingle(),
       client.from('programs').select('id,slug,name,summary,description,impact,feature_label,cover_image_url,additional_images,sort_order').eq('is_published', true).order('sort_order'),
       client.from('team_years').select('id,year_label').eq('is_published', true).order('sort_order'),
-      client.from('team_members').select('id,team_year_id,full_name,role_title,focus_area,biography,avatar_url,avatar_object_position,sort_order').eq('is_published', true).eq('status', 'active').order('sort_order'),
+      client.from('team_members').select('id,team_year_id,full_name,role_title,focus_area,biography,email,avatar_url,avatar_object_position,sort_order').eq('is_published', true).eq('status', 'active').order('sort_order'),
       client.from('partner_organizations').select('id,name,description,focus_area,logo_url,website_url,sort_order').eq('is_published', true).is('archived_at', null).order('sort_order').order('name'),
       client.from('donation_campaigns').select('id,category,slug,title,description,target_amount,raised_amount,currency_code,cover_image_url,starts_at,ends_at,sort_order').eq('is_published', true).eq('status', 'active').is('archived_at', null).order('sort_order'),
       client.from('donation_methods').select('id,method_type,label,details,instructions').eq('is_active', true).eq('is_public', true).order('sort_order'),
@@ -303,12 +304,13 @@ export function SiteContentProvider({ children }: { children: ReactNode }) {
         ...year,
         members: members
           .filter((member) => member.team_year_id === year.id)
-          .map(({ id, full_name, role_title, focus_area, biography, avatar_url, avatar_object_position, sort_order }) => ({
+          .map(({ id, full_name, role_title, focus_area, biography, email, avatar_url, avatar_object_position, sort_order }) => ({
             id,
             full_name,
             role_title,
             focus_area,
             biography,
+            email,
             avatar_url,
             avatar_object_position,
             sort_order,

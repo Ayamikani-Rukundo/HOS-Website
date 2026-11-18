@@ -242,6 +242,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .team-member-modal-avatar { width: 124px; height: 124px; }
 .team-member-modal-body .card-kicker { text-align: center; }
 .team-member-biography { width: 100%; margin: 0; color: var(--ink-soft); font-size: .9rem; line-height: 1.75; white-space: pre-wrap; }
+.team-member-email { display: inline-flex; align-items: center; gap: 7px; color: var(--ink-soft); font-size: .82rem; text-decoration: none; }
+.team-member-email:hover { color: var(--gold); }
 .avatar-crop-editor { display: flex; align-items: center; gap: 16px; padding: 12px; border: 1px solid var(--line); border-radius: 11px; background: var(--page-soft); }
 .avatar-crop-preview { width: 126px; height: 126px; flex: 0 0 auto; overflow: hidden; border: 2px solid var(--gold); border-radius: 50%; background: var(--surface-raised); cursor: grab; touch-action: none; }
 .avatar-crop-preview:active { cursor: grabbing; }
@@ -756,6 +758,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .admin-progress-metric { position: relative; text-align: left; cursor: pointer; transition: border-color .18s ease, transform .18s ease, background .18s ease; }
 .admin-progress-metric:hover, .admin-progress-metric.selected { transform: translateY(-2px); border-color: rgba(var(--green-rgb), .5); }
 .admin-progress-metric:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+.team-year-progress { display: grid; gap: 14px; margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--line); }
+.team-year-progress h3 { margin: 0 0 4px; font-size: .95rem; }
+.team-year-progress p { margin: 0; color: var(--muted); font-size: .76rem; }
+.team-year-progress-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.team-year-progress-item { display: flex; min-width: 130px; align-items: center; justify-content: space-between; gap: 18px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 9px; background: var(--page-soft); color: var(--ink-soft); font-size: .76rem; }
+.team-year-progress-item strong { color: var(--ink); font-size: .9rem; }
 .admin-progress-records { display: grid; gap: 12px; }
 .admin-progress-records > .student-workspace { min-width: 0; }
 .record-readonly-fields { display: grid; gap: 10px; margin: 0; }
@@ -779,6 +787,11 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .portal-guide-card ul { display: grid; gap: 8px; margin: 13px 0 0; padding: 0; list-style: none; }
 .portal-guide-card li { position: relative; padding-left: 17px; color: var(--ink-soft); font-size: .76rem; line-height: 1.55; }
 .portal-guide-card li::before { position: absolute; top: .56em; left: 1px; width: 6px; height: 6px; border-radius: 50%; background: var(--gold); content: ''; }
+.team-member-year-groups { display: grid; gap: 20px; }
+.team-member-year-group { display: grid; gap: 10px; }
+.team-member-year-group > header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.team-member-year-group > header h3 { margin: 0; font-size: 1rem; }
+.team-member-year-group > header span { color: var(--muted); font-size: .72rem; }
 .record-preview-grid { display: grid; gap: 12px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .record-preview-card { min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
 .record-preview-images { display: grid; height: 145px; overflow: hidden; gap: 2px; background: var(--page-soft); grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); }

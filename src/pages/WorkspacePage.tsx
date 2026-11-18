@@ -853,6 +853,7 @@ function AdminProgressWorkspace() {
   const [selectedGroup, setSelectedGroup] = useState(progressGroups[0].key);
   const [selectedTable, setSelectedTable] = useState<AdminTable | null>(null);
   const [metrics, setMetrics] = useState<PortalProgressMetric[]>([]);
+  const [teamYearCounts, setTeamYearCounts] = useState<Array<{ id: string; label: string; count: number }>>([]);
   const [history, setHistory] = useState<DataRow[]>([]);
   const [selectedEvents, setSelectedEvents] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -865,9 +866,11 @@ function AdminProgressWorkspace() {
     if (!silent) setLoading(true);
     setError(null);
     try {
-      const [metricsResult, events] = await Promise.all([
+      const [metricsResult, events, teamYears, teamMembers] = await Promise.all([
         client.rpc('get_admin_portal_metrics'),
         listAdminRows('audit_events'),
+        listAdminRows('team_years', '', { fetchAll: true }),
+        listAdminRows('team_members', '', { fetchAll: true }),
       ]);
       if (metricsResult.error) throw new Error(`Portal metrics could not be loaded: ${metricsResult.error.message}`);
       if (!Array.isArray(metricsResult.data) || !metricsResult.data.every(isPortalProgressMetric)) {
@@ -882,9 +885,18 @@ function AdminProgressWorkspace() {
       }
       setMetrics(loadedMetrics);
       setHistory(events);
+      setTeamYearCounts(teamYears.flatMap((year) => {
+        if (typeof year.id !== 'string' || typeof year.year_label !== 'string') return [];
+        return [{
+          id: year.id,
+          label: year.year_label,
+          count: teamMembers.filter((member) => member.team_year_id === year.id).length,
+        }];
+      }).sort((left, right) => left.label.localeCompare(right.label, undefined, { numeric: true })));
       return true;
     } catch (loadError) {
       setMetrics([]);
+      setTeamYearCounts([]);
       setHistory([]);
       setError(loadError instanceof Error ? loadError.message : 'Portal progress could not be loaded.');
       return false;
@@ -897,7 +909,9 @@ function AdminProgressWorkspace() {
     void Promise.resolve().then(() => refresh());
     let active = true;
     const channel = client.channel('admin-portal-progress')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'audit_events' }, () => { void refresh(true); });
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'audit_events' }, () => { void refresh(true); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'team_years' }, () => { void refresh(true); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'team_members' }, () => { void refresh(true); });
     channel.subscribe((status) => {
       if (!active) return;
       if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
@@ -964,6 +978,12 @@ function AdminProgressWorkspace() {
           onClick={() => setSelectedTable(table)}
         ><div className="metric-number">{metric?.record_count.toLocaleString() ?? '—'}</div><div className="metric-label">{configs[table].title}</div><ArrowRight size={15} /></button>;
       })}</div>}
+      {!loading && activeGroup.key === 'communications' && <div className="team-year-progress">
+        <div><h3>Team members by year</h3><p>Published, active team profiles in each roster.</p></div>
+        {teamYearCounts.length
+          ? <div className="team-year-progress-list">{teamYearCounts.map((year) => <div className="team-year-progress-item" key={year.id}><span>{year.label}</span><strong>{year.count}</strong></div>)}</div>
+          : <p className="field-hint">No published team years are available.</p>}
+      </div>}
     </section>
     {selectedTable && !loading && <section className="panel admin-progress-records">
       <div className="panel-heading">
@@ -1293,21 +1313,33 @@ function RecordWorkspace({ config }: { config: TableConfig }) {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [editing, setEditing] = useState<DataRow | null>(null);
   const [selectedPreview, setSelectedPreview] = useState<DataRow | null>(null);
+  const [teamYearChoices, setTeamYearChoices] = useState<Array<{ id: string; label: string }>>([]);
   const [isNew, setIsNew] = useState(false);
   const [page, setPage] = useState(0);
   const [copyMessage, setCopyMessage] = useState<string | null>(null);
   const [copyingEmails, setCopyingEmails] = useState(false);
   const searchRef = useRef(search);
   const { user } = useAuth();
-  const pageSize = 12;
+  const pageSize = config.table === 'team_members' ? 250 : 12;
   const canEdit = !config.readOnly;
 
   const refresh = useCallback(async (term: string) => {
     setLoading(true);
     setError(null);
     try {
-      const result = await listAdminRows(config.table, term, { fetchAll: config.fetchAllRecords });
+      const [result, years] = await Promise.all([
+        listAdminRows(config.table, term, { fetchAll: config.fetchAllRecords }),
+        config.table === 'team_members'
+          ? listAdminRows('team_years', '', { fetchAll: true })
+          : Promise.resolve<DataRow[]>([]),
+      ]);
       setRows(result);
+      setTeamYearChoices(years
+        .flatMap((year) => typeof year.id === 'string' && typeof year.year_label === 'string'
+          ? [{ id: year.id, label: year.year_label, sortOrder: typeof year.sort_order === 'number' ? year.sort_order : 0 }]
+          : [])
+        .sort((left, right) => left.sortOrder - right.sortOrder)
+        .map(({ id, label }) => ({ id, label })));
       setPage(0);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : `Unable to load ${config.title.toLowerCase()}.`);
@@ -1340,6 +1372,40 @@ function RecordWorkspace({ config }: { config: TableConfig }) {
     };
   }, [config.table, refresh]);
   const visibleRows = useMemo(() => rows.slice(page * pageSize, (page + 1) * pageSize), [page, rows]);
+  const teamMemberGroups = useMemo(() => {
+    if (config.table !== 'team_members') return [];
+    const groupedRows = new Map(teamYearChoices.map((year) => [year.id, [] as DataRow[]]));
+    const unlistedRows: DataRow[] = [];
+    visibleRows.forEach((row) => {
+      const yearId = typeof row.team_year_id === 'string' ? row.team_year_id : null;
+      const group = yearId ? groupedRows.get(yearId) : undefined;
+      if (group) group.push(row);
+      else unlistedRows.push(row);
+    });
+    const groups = teamYearChoices
+      .map((year) => ({ label: year.label, rows: groupedRows.get(year.id) ?? [] }))
+      .filter((group) => group.rows.length > 0);
+    if (unlistedRows.length) groups.push({ label: 'Unlisted team year', rows: unlistedRows });
+    return groups;
+  }, [config.table, teamYearChoices, visibleRows]);
+  const renderPreviewCard = (row: DataRow, index: number) => {
+    const rowId = String(row.id ?? index);
+    const title = String(row.full_name ?? row.title ?? row.name ?? 'Untitled record');
+    const previewImages = recordPreviewImages(row);
+    const subtitle = config.table === 'team_members'
+      ? [row.role_title, row.email].filter((value): value is string => typeof value === 'string' && value.trim().length > 0).join(' · ')
+      : String(row.collection_name ?? row.focus_area ?? row.status ?? 'HOS record');
+    return <article className={`record-preview-card${config.table === 'partner_organizations' ? ' record-preview-partner-card' : ''}`} key={rowId}>
+      {previewImages.length ? <div className={`record-preview-images${config.table === 'team_members' ? ' record-preview-member-image' : ''}${config.table === 'partner_organizations' ? ' record-preview-partner-image' : ''}`}>{previewImages.slice(0, 4).map((src, imageIndex) => <img src={src} key={`${src}-${imageIndex}`} alt={config.table === 'partner_organizations' ? `${title} logo` : config.table === 'team_members' ? `${title} profile` : ''} loading="lazy" style={config.table === 'team_members' && typeof row.avatar_object_position === 'string' ? { objectPosition: row.avatar_object_position } : undefined} />)}</div> : <div className={`record-preview-placeholder${config.table === 'team_members' ? ' record-preview-member-image' : ''}${config.table === 'partner_organizations' ? ' record-preview-partner-image' : ''}`}>{config.table === 'team_members' ? <Users size={24} /> : <ImageUp size={24} />}</div>}
+      <div className="record-preview-content"><div className="card-kicker">{subtitle}</div><h3>{title}</h3><p>{String(row.biography ?? row.caption ?? row.description ?? row.summary ?? '') || 'No biography has been added.'}</p>
+        <div className="record-preview-actions">
+          {canEdit && <button className="button button-outline button-small" type="button" onClick={() => { setEditing(row); setIsNew(false); setFieldErrors({}); setError(null); }}><Pencil size={13} /> Edit</button>}
+          {canEdit && config.canDelete !== false && <button className="button button-danger button-small" type="button" onClick={() => setConfirmingId(confirmingId === rowId ? null : rowId)} disabled={busy}><Trash2 size={13} /> Delete</button>}
+          {config.readOnly && <button className="button button-outline button-small" type="button" onClick={() => setSelectedPreview(row)}><Eye size={13} /> View record</button>}
+        </div>
+      </div>
+    </article>;
+  };
 
   const startNew = () => {
     const initial: DataRow = {};
@@ -1687,26 +1753,12 @@ function RecordWorkspace({ config }: { config: TableConfig }) {
           })}
         </div>
       ) : ['galleries', 'partner_organizations', 'programs', 'events', 'announcements', 'donation_campaigns', 'team_members'].includes(config.table) ? (
-        <div className="record-preview-grid">
-          {visibleRows.map((row, index) => {
-            const rowId = String(row.id ?? index);
-            const title = String(row.full_name ?? row.title ?? row.name ?? 'Untitled record');
-            const previewImages = recordPreviewImages(row);
-            const subtitle = config.table === 'team_members'
-              ? [row.role_title, row.email].filter((value): value is string => typeof value === 'string' && value.trim().length > 0).join(' · ')
-              : String(row.collection_name ?? row.focus_area ?? row.status ?? 'HOS record');
-            return <article className={`record-preview-card${config.table === 'partner_organizations' ? ' record-preview-partner-card' : ''}`} key={rowId}>
-              {previewImages.length ? <div className={`record-preview-images${config.table === 'team_members' ? ' record-preview-member-image' : ''}${config.table === 'partner_organizations' ? ' record-preview-partner-image' : ''}`}>{previewImages.slice(0, 4).map((src, imageIndex) => <img src={src} key={`${src}-${imageIndex}`} alt={config.table === 'partner_organizations' ? `${title} logo` : config.table === 'team_members' ? `${title} profile` : ''} loading="lazy" />)}</div> : <div className={`record-preview-placeholder${config.table === 'team_members' ? ' record-preview-member-image' : ''}${config.table === 'partner_organizations' ? ' record-preview-partner-image' : ''}`}>{config.table === 'team_members' ? <Users size={24} /> : <ImageUp size={24} />}</div>}
-              <div className="record-preview-content"><div className="card-kicker">{subtitle}</div><h3>{title}</h3><p>{String(row.biography ?? row.caption ?? row.description ?? row.summary ?? '') || 'No biography has been added.'}</p>
-                <div className="record-preview-actions">
-                  {canEdit && <button className="button button-outline button-small" type="button" onClick={() => { setEditing(row); setIsNew(false); setFieldErrors({}); setError(null); }}><Pencil size={13} /> Edit</button>}
-                  {canEdit && config.canDelete !== false && <button className="button button-danger button-small" type="button" onClick={() => setConfirmingId(confirmingId === rowId ? null : rowId)} disabled={busy}><Trash2 size={13} /> Delete</button>}
-                  {config.readOnly && <button className="button button-outline button-small" type="button" onClick={() => setSelectedPreview(row)}><Eye size={13} /> View record</button>}
-                </div>
-              </div>
-            </article>;
-          })}
-        </div>
+        config.table === 'team_members'
+          ? <div className="team-member-year-groups">{teamMemberGroups.map((group) => <section className="team-member-year-group" key={group.label}>
+            <header><h3>{group.label}</h3><span>{group.rows.length} {group.rows.length === 1 ? 'member' : 'members'}</span></header>
+            <div className="record-preview-grid">{group.rows.map(renderPreviewCard)}</div>
+          </section>)}</div>
+          : <div className="record-preview-grid">{visibleRows.map(renderPreviewCard)}</div>
       ) : (
         <div className="table-wrap">
           <table className="data-table"><thead><tr>{config.columns.map((column) => <th key={column}>{column.replaceAll('_', ' ')}</th>)}{config.readOnly ? <th>Preview</th> : <th>Actions</th>}</tr></thead><tbody>
@@ -1771,6 +1823,7 @@ function getEditorFieldValue(record: DataRow, item: Field) {
 }
 
 function recordPreviewImages(row: DataRow) {
+  if (typeof row.avatar_url === 'string' && row.avatar_url.length > 0) return [row.avatar_url];
   const imageList = row.additional_images;
   const images = Array.isArray(imageList)
     ? imageList.flatMap((asset) => typeof asset === 'object' && asset !== null && 'url' in asset && typeof asset.url === 'string' ? [asset.url] : [])
