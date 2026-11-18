@@ -87,7 +87,7 @@ const configs: Record<AdminTable, TableConfig> = {
   organizations: { table: 'organizations', title: 'Organization profile', description: 'Public identity and official contact details.', columns: ['name', 'tagline', 'location', 'email'], fields: [field('name', 'Name', 'text', undefined, true), field('tagline'), field('location'), field('founded_year'), field('mission', 'Mission', 'textarea'), field('email'), field('phone'), field('address', 'Address', 'textarea'), field('currency_code')], canCreate: false, canDelete: false },
   website_sections: { table: 'website_sections', title: 'Website sections', description: 'Titles and structured content for public pages. Saving changes publishes them immediately.', columns: ['section_key', 'title'], fields: [field('section_key', 'Section key', 'text', undefined, true), field('title', 'Title', 'text', undefined, true), field('content', 'Page content', 'json')] },
   team_years: { table: 'team_years', title: 'Team years', description: 'Annual team rosters. Saving publishes the roster immediately.', columns: ['year_label'], fields: [field('year_label', 'Year', 'text', undefined, true), field('sort_order', 'Display order', 'display-order', undefined, true)] },
-  team_members: { table: 'team_members', title: 'Team members', description: 'Staff and leadership biographies. Saving publishes the profile immediately.', columns: ['full_name', 'role_title'], fields: [referenceField('team_year_id', 'Team year', 'team_years', ['year_label'], true), field('full_name', 'Full name', 'text', undefined, true), field('role_title', 'Role title'), field('focus_area'), field('biography', 'Biography', 'textarea'), field('email'), field('avatar_url', 'Profile image', 'image'), field('sort_order', 'Display order', 'display-order', undefined, true)] },
+  team_members: { table: 'team_members', title: 'Team members', description: 'Staff and leadership biographies. Display order is managed separately within each team year; new profiles are added last.', columns: ['full_name', 'role_title'], fields: [referenceField('team_year_id', 'Team year', 'team_years', ['year_label'], true), field('full_name', 'Full name', 'text', undefined, true), field('role_title', 'Role title'), field('focus_area'), field('biography', 'Biography', 'textarea'), field('email'), field('avatar_url', 'Profile image', 'image')] },
   programs: { table: 'programs', title: 'Programs', description: 'Public program information and summaries. The URL is generated from the name; saving publishes the program immediately.', columns: ['name'], fields: [field('name', 'Name', 'text', undefined, true), field('summary', 'Summary', 'textarea', undefined, true), field('description', 'Description', 'textarea'), field('impact', 'Focus / impact', 'textarea'), field('feature_label'), field('cover_image_url', 'Cover image', 'image'), field('additional_images', 'Additional images', 'json'), field('objectives', 'Objectives (one per line)', 'json'), field('is_featured', 'Featured', 'boolean'), field('sort_order', 'Display order', 'display-order', undefined, true)] },
   partner_organizations: { table: 'partner_organizations', title: 'Partner organizations', description: 'Fundraising manages partner records. Communications and Volunteer Management can view and export the shared records.', columns: ['name', 'focus_area', 'website_url'], fields: [field('name', 'Organization name', 'text', undefined, true), field('focus_area', 'Partnership focus'), field('description', 'About the partnership', 'textarea'), field('logo_url', 'Organization logo', 'image'), field('website_url', 'Website'), field('sort_order', 'Display order', 'display-order', undefined, true)], createLabel: 'Add partner' },
   galleries: { table: 'galleries', title: 'Gallery', description: 'Create a photo post with one or more original images. Saving publishes it immediately.', columns: ['title', 'collection_name'], fields: [field('title', 'Post title'), field('additional_images', 'Post images', 'image-list', undefined, true), field('alt_text', 'Alternative text'), field('caption', 'Caption', 'textarea'), field('description', 'Description', 'textarea'), field('collection_name', 'Collection'), field('activity_date', 'Activity date', 'date'), field('sort_order', 'Display order', 'display-order', undefined, true)] },
@@ -1562,6 +1562,25 @@ function RecordWorkspace({ config }: { config: TableConfig }) {
         values.published_at = typeof editing.published_at === 'string' ? editing.published_at : new Date().toISOString();
       }
       if (config.table === 'team_members') {
+        const teamYearId = String(values.team_year_id ?? '').trim();
+        if (!teamYearId) throw new Error('Choose a team year before saving this profile.');
+        const currentOrder = Number(editing.sort_order);
+        const hasCurrentOrder = editing.sort_order !== null
+          && editing.sort_order !== undefined
+          && String(editing.sort_order).trim() !== ''
+          && Number.isInteger(currentOrder);
+        if (!isNew && editing.team_year_id === teamYearId && hasCurrentOrder) {
+          values.sort_order = currentOrder;
+        } else {
+          const { data: teamMembers, error: teamMembersError } = await getSupabaseClient()
+            .from('team_members')
+            .select('sort_order')
+            .eq('team_year_id', teamYearId);
+          if (teamMembersError) throw new Error(`Could not determine the next display order for this team year: ${teamMembersError.message}`);
+          const lastOrder = (teamMembers ?? []).reduce((maximum, member) =>
+            Number.isInteger(member.sort_order) ? Math.max(maximum, member.sort_order) : maximum, 0);
+          values.sort_order = lastOrder + 1;
+        }
         const avatarPosition = String(formData.get('avatar_object_position') ?? '').trim();
         if (avatarPosition) values.avatar_object_position = avatarPosition;
       }
