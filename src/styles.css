@@ -318,19 +318,23 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .gallery-grid { display: grid; gap: 14px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .gallery-item { position: relative; min-width: 0; min-height: 210px; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-raised); cursor: zoom-in; }
 .gallery-item img { width: 100%; height: 100%; min-height: inherit; background: var(--surface-raised); object-fit: contain; transition: transform .5s ease; }
+.gallery-masonry { display: block; columns: 3; column-gap: 14px; }
+.gallery-masonry .gallery-item { display: inline-block; width: 100%; min-height: 0; margin: 0 0 14px; break-inside: avoid; vertical-align: top; }
+.gallery-masonry .gallery-item img { display: block; height: auto; min-height: 0; object-fit: initial; }
 .gallery-overlay { position: absolute; inset: auto 0 0; display: grid; gap: 4px; padding: 32px 16px 14px; background: linear-gradient(transparent, rgba(10, 17, 12, .88)); color: #fff; opacity: 0; transition: opacity .2s ease; }
 .gallery-overlay strong { font-size: .88rem; }
-.gallery-overlay > span { font-size: .72rem; line-height: 1.4; }
+.gallery-overlay > span { display: -webkit-box; overflow: hidden; font-size: .72rem; line-height: 1.4; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
 .gallery-overlay small { color: #f3de87; font-size: .66rem; }
 .gallery-item:hover .gallery-overlay, .gallery-item:focus-visible .gallery-overlay { opacity: 1; }
 .lightbox { position: fixed; z-index: 1000; inset: 0; display: grid; place-items: center; padding: 24px; background: rgba(4, 9, 6, .78); backdrop-filter: blur(8px); }
 .lightbox-inner { position: relative; display: grid; width: min(100%, 960px); max-height: min(680px, calc(100vh - 72px)); overflow: hidden; border: 1px solid rgba(255,255,255,.16); border-radius: 15px; background: #101914; box-shadow: var(--shadow); grid-template-columns: minmax(0, 1.2fr) minmax(250px, .8fr); }
 .lightbox-photo { position: relative; display: grid; min-width: 0; min-height: 300px; padding: 18px; place-items: center; overflow: hidden; background: #080d0a; }
-.lightbox-image { display: block; width: 100%; max-height: min(620px, calc(100vh - 108px)); object-fit: contain; }
+.lightbox-image { display: block; width: auto; max-width: 100%; height: auto; max-height: min(620px, calc(100vh - 108px)); object-fit: contain; }
 .lightbox-details { display: flex; min-width: 0; flex-direction: column; justify-content: center; gap: 11px; overflow: auto; padding: clamp(22px, 3vw, 34px); color: #f8f5eb; line-height: 1.55; }
 .lightbox-details h2 { margin: 0; color: #fff; font: 600 clamp(1.45rem, 3vw, 2.1rem)/1.12 var(--serif); }
 .lightbox-details p { margin: 0; color: rgba(248,245,235,.78); white-space: pre-wrap; }
 .lightbox-count { color: #f3de87; font: 600 .72rem 'DM Sans', sans-serif; }
+.lightbox-download { align-self: flex-start; }
 .lightbox-controls { position: absolute; inset: 12px; display: flex; align-items: center; justify-content: space-between; pointer-events: none; }
 .lightbox-controls button, .lightbox-close { pointer-events: auto; }
 .lightbox-controls button { display: grid; width: 48px; height: 56px; place-items: center; border: 2px solid rgba(255,255,255,.92); border-radius: 14px; background: rgba(5, 15, 11, .94); color: #fff; box-shadow: 0 3px 14px rgba(0,0,0,.7); cursor: pointer; transition: background .18s ease, color .18s ease, border-color .18s ease, transform .18s ease; }
@@ -1031,6 +1035,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   .gallery-upload-item { grid-template-columns: minmax(0, 1fr); }
   .gallery-upload-item .upload-preview { max-width: 240px; }
   .gallery-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .gallery-masonry { columns: 2; }
   .lightbox { padding: 12px; }
   .lightbox-inner { width: min(100%, 620px); max-height: calc(100vh - 48px); grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(180px, 1fr) auto; }
   .lightbox-photo { min-height: 0; max-height: 52vh; padding: 12px; }
@@ -1063,6 +1068,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   .stat-value { font-size: 1.6rem; }
   .gallery-item { min-height: 140px; }
   .gallery-grid { grid-template-columns: minmax(0, 1fr); }
+  .gallery-masonry { columns: 1; }
   .gallery-overlay { opacity: 1; }
   .inline-form { flex-direction: column; }
   .form-grid { grid-template-columns: 1fr; }

@@ -10,6 +10,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock3,
+  Download,
   Globe2,
   Heart,
   HeartHandshake,
@@ -41,6 +42,27 @@ const formatDate = (date: string | null, options: Intl.DateTimeFormatOptions = {
 
 const formatMoney = (amount: number | null, currency: string) =>
   amount === null ? 'Not set' : `${new Intl.NumberFormat('en', { maximumFractionDigits: 0 }).format(amount)} ${currency}`;
+
+type GalleryEntry = {
+  title: string | null;
+  caption: string | null;
+  description: string | null;
+  alt_text: string | null;
+  collection_name: string | null;
+};
+
+const defaultGalleryTitle = 'A moment from Heart of Sympathy community activities';
+const defaultGalleryDescription = 'This photograph is shared as part of Heart of Sympathy’s ongoing work alongside students, families, and communities. Through education support, mentorship, health and nutrition assistance, and community outreach, HOS works to help young people feel supported and build brighter futures. Every activity reflects the care and collaboration of the people who make this work possible.';
+const getPostTitle = (image: GalleryEntry) => image.title?.trim() || image.caption?.trim() || defaultGalleryTitle;
+const getPostDescription = (image: GalleryEntry) => image.description?.trim() || image.caption?.trim() || defaultGalleryDescription;
+const getPostAlt = (image: GalleryEntry) => image.alt_text?.trim() || image.caption?.trim() || image.title?.trim() || defaultGalleryTitle;
+const getCollectionName = (image: GalleryEntry) => image.collection_name?.trim() || 'Heart of Sympathy activities';
+const getGalleryDownload = (url: string, index: number) => {
+  const downloadUrl = new URL(url, window.location.href);
+  const filename = downloadUrl.pathname.split('/').pop() || `hos-photo-${index + 1}`;
+  downloadUrl.searchParams.set('download', filename);
+  return { href: downloadUrl.toString(), filename };
+};
 
 function PageIntro({ eyebrow, title, description, children }: { eyebrow: string; title: string; description?: string | null; children?: ReactNode }) {
   return (
@@ -353,7 +375,7 @@ export function HomePage() {
         <section className="section" style={{ background: 'var(--page-soft)', borderBlock: '1px solid var(--line)' }}>
           <div className="wrap">
             <div className="section-heading"><div className="eyebrow">HOS activities</div><h2>Photos from our activities.</h2></div>
-            <div className="gallery-grid">{gallery.slice(0, 4).map((image) => <Link className="gallery-item" key={image.id} to="/gallery"><img src={image.image_url} alt={image.alt_text ?? 'Heart of Sympathy community photograph'} loading="lazy" /><div className="gallery-overlay">{image.caption ?? image.collection_name}</div></Link>)}</div>
+            <div className="gallery-grid">{gallery.slice(0, 4).map((image) => <Link className="gallery-item" key={image.id} to="/gallery"><img src={image.image_url} alt={getPostAlt(image)} loading="lazy" /><div className="gallery-overlay">{image.caption?.trim() || image.collection_name?.trim() || defaultGalleryDescription}</div></Link>)}</div>
             <Link to="/gallery" className="text-link">Visit the gallery <ArrowRight size={14} /></Link>
           </div>
         </section>
@@ -490,6 +512,7 @@ export function GalleryPage() {
   const post = selected === null ? null : images[selected] ?? null;
   const slides = post?.additional_images.length ? post.additional_images : post ? [{ url: post.image_url, caption: '' }] : [];
   const currentSlide = slides[selectedSlide] ?? slides[0];
+  const download = currentSlide ? getGalleryDownload(currentSlide.url, selectedSlide) : null;
 
   useEffect(() => {
     if (selected === null) return;
@@ -511,10 +534,10 @@ export function GalleryPage() {
       <PageIntro eyebrow="HOS activities" title="Photos from our activities." description="Browse photographs and captions shared by the Heart of Sympathy team." />
       <section className="wrap section-tight">
         {collections.length > 1 && <div className="filter-row">{collections.map((name) => <button type="button" className={`button button-small ${collection === name ? 'button-primary' : 'button-outline'}`} key={name} onClick={() => setCollection(name)}>{name}</button>)}</div>}
-        {isLoading ? <div className="grid grid-3">{[1, 2, 3].map((item) => <div key={item} className="skeleton" style={{ height: 210 }} />)}</div> : images.length > 0 ? <div className="gallery-grid">{images.map((image, index) => {
+        {isLoading ? <div className="grid grid-3">{[1, 2, 3].map((item) => <div key={item} className="skeleton" style={{ height: 210 }} />)}</div> : images.length > 0 ? <div className="gallery-grid gallery-masonry">{images.map((image, index) => {
           const cover = image.additional_images[0]?.url ?? image.image_url;
           const photoCount = image.additional_images.length || 1;
-          return <button type="button" className="gallery-item" key={image.id} onClick={() => { setSelected(index); setSelectedSlide(0); }} aria-label={`Open ${image.title ?? image.caption ?? 'gallery post'} with ${photoCount} photo${photoCount === 1 ? '' : 's'}`}><img src={cover} alt={image.alt_text ?? image.caption ?? 'Heart of Sympathy activity'} loading="lazy" /><span className="gallery-overlay"><strong>{image.title ?? image.caption ?? 'HOS activity'}</strong><span>{image.description ?? ''}</span>{photoCount > 1 && <small>{photoCount} photos · open to view</small>}</span></button>;
+          return <button type="button" className="gallery-item" key={image.id} onClick={() => { setSelected(index); setSelectedSlide(0); }} aria-label={`Open ${getPostTitle(image)} with ${photoCount} photo${photoCount === 1 ? '' : 's'}`}><img src={cover} alt={getPostAlt(image)} loading="lazy" /><span className="gallery-overlay"><strong>{getPostTitle(image)}</strong><span>{getPostDescription(image)}</span>{photoCount > 1 && <small>{photoCount} photos · open to view</small>}</span></button>;
         })}</div> : <EmptyState>No photographs are published in this collection yet.</EmptyState>}
       </section>
       {post && currentSlide && createPortal(
@@ -522,15 +545,16 @@ export function GalleryPage() {
           <div className="lightbox-inner">
             <button type="button" className="icon-button lightbox-close" onClick={() => setSelected(null)} aria-label="Close image"><X size={19} /></button>
             <div className="lightbox-photo">
-              <img className="lightbox-image" src={currentSlide.url} alt={currentSlide.caption || post.alt_text || post.title || ''} />
+              <img className="lightbox-image" src={currentSlide.url} alt={currentSlide.caption?.trim() || getPostAlt(post)} />
               {slides.length > 1 && <div className="lightbox-controls"><button type="button" className="icon-button" onClick={() => setSelectedSlide((selectedSlide - 1 + slides.length) % slides.length)} aria-label="Previous image"><ChevronLeft /></button><button type="button" className="icon-button" onClick={() => setSelectedSlide((selectedSlide + 1) % slides.length)} aria-label="Next image"><ChevronRight /></button></div>}
             </div>
             <div className="lightbox-details">
-              <div className="eyebrow">{post.collection_name ?? 'HOS activities'}</div>
-              <h2>{post.title ?? post.caption ?? 'HOS activity'}</h2>
-              <p>{currentSlide.caption || post.description || post.caption || 'Photograph from a Heart of Sympathy activity.'}</p>
+              <div className="eyebrow">{getCollectionName(post)}</div>
+              <h2>{getPostTitle(post)}</h2>
+              <p>{currentSlide.caption?.trim() || post.description?.trim() || post.caption?.trim() || defaultGalleryDescription}</p>
               {post.activity_date && <div className="field-hint">{formatDate(post.activity_date)}</div>}
               {slides.length > 1 && <div className="lightbox-count">{selectedSlide + 1} of {slides.length} photos</div>}
+              {download && <a className="button button-outline lightbox-download" href={download.href} download={download.filename}><Download size={15} /> Download photo</a>}
             </div>
           </div>
         </div>,
